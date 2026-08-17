@@ -92,7 +92,11 @@ ul{list-style:none}
 .cool{color:var(--cool)}
 
 /* ---- APP FRAME ---- */
-#app{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+/* height:100% of <body>, which is position:fixed inset:0 and therefore exactly
+   the viewport. Deliberately NOT 100dvh — dvh and the fixed-body box can differ
+   on iOS, and when dvh comes out short the whole shell sits above the bottom of
+   the screen, which looks exactly like padding under the tab bar. */
+#app{height:100%;display:flex;flex-direction:column;overflow:hidden}
 
 .topbar{
   flex:none;z-index:40;
@@ -342,7 +346,7 @@ main{
 }
 .sheet{
   position:fixed;left:0;right:0;bottom:var(--kb,0px);z-index:61;
-  max-height:calc(100dvh - var(--sat) - 24px);
+  max-height:calc(100% - var(--sat) - 24px);
   display:flex;flex-direction:column;
   background:#12161B;border:1px solid var(--hair2);border-bottom:0;
   border-radius:20px 20px 0 0;
@@ -352,7 +356,13 @@ main{
 }
 .sheet.kb{padding-bottom:10px}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}
-.grip{width:38px;height:4px;border-radius:2px;background:var(--hair2);margin:9px auto 2px;flex:none}
+/* Generous grab zone — the visible grip is 4px tall, which is not a tap target */
+.grab{
+  flex:none;padding:10px 0 6px;display:flex;justify-content:center;
+  touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;
+}
+.grip{width:38px;height:4px;border-radius:2px;background:var(--hair2);display:block}
+.grab:active .grip{background:var(--steel)}
 .sheet-head{
   display:flex;align-items:center;gap:12px;padding:10px calc(var(--pad) + var(--sar)) 12px calc(var(--pad) + var(--sal));
   border-bottom:1px solid var(--hair);flex:none;
@@ -2855,14 +2865,76 @@ function renderSettings(){
         'Gym · ' + APP_VERSION + ' · works offline'),
       el('div',{class:'micro',style:'margin-top:4px;text-align:center;opacity:.7'},
         'tab bar ' + (parseInt(getComputedStyle(document.documentElement)
-          .getPropertyValue('--tabh')) || 0) + 'px + ' +
+          .getPropertyValue('--tabh')) || 0) + '+' +
         (parseInt(getComputedStyle(document.documentElement)
           .getPropertyValue('--tabbot')) || 0) + 'px · safe-area ' +
-        (getComputedStyle(document.documentElement).getPropertyValue('--sab').trim() || '0px'))
+        (getComputedStyle(document.documentElement).getPropertyValue('--sab').trim() || '0px')),
+      // If a gap under the tab bar ever persists, these three numbers say
+      // whether it is CSS or the viewport lying: gapBelow should be 0.
+      el('div',{class:'micro',style:'margin-top:2px;text-align:center;opacity:.55'}, (() => {
+        const t = $('.tabs');
+        const gap = t ? Math.round(window.innerHeight - t.getBoundingClientRect().bottom) : -1;
+        return 'window ' + window.innerHeight + ' · app ' + Math.round($('#app').getBoundingClientRect().height) +
+               ' · gap below bar ' + gap + 'px';
+      })())
     )));
 }
 
 /* ---- SHEETS ---- */
+
+/* ---- SHEET DRAG-TO-DISMISS ----
+   Drag the grip or the title bar down and the sheet follows the finger; past a
+   third of its height, or on a quick flick, it closes. Anything less springs
+   back. The scrim fades with the drag so the gesture reads as reversible. */
+function enableSheetDrag(sheet, scrim, onClose){
+  const handles = [sheet.querySelector('.grab'), sheet.querySelector('.sheet-head')].filter(Boolean);
+  let st = null;
+
+  const move = e => {
+    if(!st) return;
+    const dy = e.clientY - st.y;
+    if(dy < 0){ sheet.style.transform = 'translateY(' + (dy / 4) + 'px)'; return; }  // slight resistance upward
+    st.dy = dy;
+    sheet.style.transform = 'translateY(' + dy + 'px)';
+    if(scrim) scrim.style.opacity = String(Math.max(0.15, 1 - dy / (st.h || 400)));
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    if(!st) return;
+    const dy = st.dy || 0;
+    const ms = Math.max(1, Date.now() - st.t);
+    const flick = dy / ms > 0.5;              // px per ms
+    const far = dy > Math.min(140, (st.h || 400) * 0.33);
+    st = null;
+    if(far || (flick && dy > 40)){
+      sheet.style.transition = 'transform .18s ease-out';
+      sheet.style.transform = 'translateY(100%)';
+      if(scrim){ scrim.style.transition = 'opacity .18s'; scrim.style.opacity = '0'; }
+      haptic(14);
+      setTimeout(onClose, 170);
+    } else {
+      sheet.style.transition = 'transform .2s cubic-bezier(.2,.9,.3,1)';
+      sheet.style.transform = '';
+      if(scrim){ scrim.style.transition = 'opacity .2s'; scrim.style.opacity = ''; }
+      setTimeout(() => { sheet.style.transition = ''; if(scrim) scrim.style.transition = ''; }, 220);
+    }
+  };
+  const down = e => {
+    if(e.button !== undefined && e.button !== 0) return;
+    if(e.target.closest('.x')) return;                 // let the close button be a button
+    st = { y: e.clientY, t: Date.now(), dy: 0, h: sheet.getBoundingClientRect().height };
+    sheet.style.transition = 'none';
+    sheet.style.animation = 'none';                    // don't fight the open animation
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    e.preventDefault();
+  };
+
+  handles.forEach(h => h.addEventListener('pointerdown', down));
+}
 
 let sheetOpen = false;
 function openSheet({ title, body, footer, action }){
@@ -2870,7 +2942,7 @@ function openSheet({ title, body, footer, action }){
   const scrim = el('div',{ class:'scrim', onclick:closeSheet });
   const bodyEl = el('div',{ class:'sheet-body' }, body || []);
   const kids = [
-    el('div',{class:'grip'}),
+    el('div',{class:'grab','aria-label':'Drag down to close'}, el('span',{class:'grip'})),
     el('div',{class:'sheet-head'}, el('h2',{},title||''),
       el('button',{class:'x','aria-label':'close',onclick:closeSheet},'✕')),
     bodyEl
@@ -2884,6 +2956,7 @@ function openSheet({ title, body, footer, action }){
   document.body.append(scrim, sheet);
   sheetOpen = true;
   const m = $('main'); if(m) m.style.overflowY = 'hidden';   // don't scroll behind the sheet
+  enableSheetDrag(sheet, scrim, closeSheet);
 }
 function closeSheet(){
   $$('.scrim,.sheet').forEach(n=>n.remove());
@@ -2893,16 +2966,18 @@ function closeSheet(){
 function confirmSheet(title, msg, onYes){
   const prev = $('.sheet');
   const scrim = el('div',{ class:'scrim', style:'z-index:70' });
+  const bail = () => { scrim.remove(); sheet.remove(); };
   const sheet = el('div',{ class:'sheet', style:'z-index:71' },
-    el('div',{class:'grip'}),
+    el('div',{class:'grab','aria-label':'Drag down to cancel'}, el('span',{class:'grip'})),
     el('div',{class:'sheet-head'}, el('h2',{},title)),
     el('div',{class:'sheet-body'}, el('div',{class:'note'}, msg)),
     el('div',{class:'sheet-foot'},
-      el('button',{class:'btn danger huge',onclick:()=>{ scrim.remove(); sheet.remove(); onYes(); }},'Yes, do it'),
-      el('button',{class:'btn ghost',style:'margin-top:8px',onclick:()=>{ scrim.remove(); sheet.remove(); }},'Cancel'))
+      el('button',{class:'btn danger huge',onclick:()=>{ bail(); onYes(); }},'Yes, do it'),
+      el('button',{class:'btn ghost',style:'margin-top:8px',onclick:bail},'Cancel'))
   );
-  scrim.addEventListener('click',()=>{ scrim.remove(); sheet.remove(); });
+  scrim.addEventListener('click', bail);
   document.body.append(scrim, sheet);
+  enableSheetDrag(sheet, scrim, bail);
   if(!prev) sheetOpen = true;
 }
 document.addEventListener('keydown', e => { if(e.key === 'Escape' && sheetOpen) closeSheet(); });
@@ -2942,7 +3017,7 @@ if(window.visualViewport){
 
 // Bump alongside CACHE in sw.js. Shown in Settings so it is possible to tell at
 // a glance whether the phone is running the latest build or a cached one.
-const APP_VERSION = 'build 10';
+const APP_VERSION = 'build 11';
 let swUpdate = false;
 
 S = load();
