@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Service worker.
  *
  * BUMP `CACHE` ON EVERY RELEASE. If you don't, phones that already installed the
@@ -12,7 +12,7 @@
  *     when they do, the CACHE bump picks them up.
  */
 
-const CACHE = 'gym-v1';
+const CACHE = 'gym-v2';
 
 const SHELL = [
   './',

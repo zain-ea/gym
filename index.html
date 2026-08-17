@@ -216,6 +216,43 @@ main{
 .rest-day{text-align:center;padding:30px 16px}
 .rest-day .big{font-size:26px;font-weight:800;letter-spacing:-.02em}
 
+/* ---- WEEK ---- */
+.week{display:flex;flex-direction:column;gap:2px;margin-top:16px}
+.wk{background:var(--rack);border:1px solid var(--hair);overflow:hidden;transition:border-color .15s,background .15s}
+.wk:first-child{border-radius:var(--r) var(--r) 0 0}
+.wk:last-child{border-radius:0 0 var(--r) var(--r)}
+.wk.drop{border-color:var(--amp);background:rgba(255,159,28,.12)}
+.wk.today{background:#1B212A}
+.wk-head{display:flex;align-items:center;gap:10px;padding:11px 12px;width:100%;text-align:left}
+.wk-d{width:34px;flex:none;font-size:12px;font-weight:700;letter-spacing:.07em;color:var(--steel)}
+.wk.today .wk-d{color:var(--amp)}
+.wk-mid{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
+.wk-badge{font-size:11px;font-weight:700;color:var(--amp);font-variant-numeric:tabular-nums;flex:none}
+.wk-chev{color:var(--steel);font-size:15px;flex:none;transition:transform .18s;width:14px;text-align:center}
+.wk.open .wk-chev{transform:rotate(90deg)}
+.wk-body{padding:2px 12px 12px}
+.wk-body .exs{margin-top:8px}
+.wk-body .ex{background:#0E1116}
+.wk-body .ex.locked{opacity:.72}
+
+.pill{
+  display:inline-flex;align-items:center;gap:7px;padding:7px 12px 7px 9px;border-radius:999px;
+  background:#272F3A;border:1px solid var(--hair2);font-size:13px;font-weight:650;
+  max-width:100%;min-height:34px;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+}
+.pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill .grip{flex:none;width:9px;height:13px;opacity:.5}
+.pill .grip i{display:block;width:3px;height:3px;border-radius:50%;background:currentColor;
+  box-shadow:6px 0 currentColor,0 5px currentColor,6px 5px currentColor,0 10px currentColor,6px 10px currentColor}
+.pill.rest{background:none;border-style:dashed;color:var(--steel);font-weight:500;padding-left:12px}
+.pill.dragging{opacity:.25}
+.pill.ghost{
+  position:fixed;z-index:90;pointer-events:none;margin:0;
+  box-shadow:0 14px 32px rgba(0,0,0,.6);transform:scale(1.07);
+  border-color:var(--amp);
+}
+
 /* ---- LOG SHEET ---- */
 .scrim{
   position:fixed;inset:0;z-index:60;background:rgba(4,6,8,.62);
@@ -384,6 +421,7 @@ main{
 .streak i{aspect-ratio:1;border-radius:4px;background:var(--rack);border:1px solid var(--hair)}
 .streak i.a{background:rgba(255,159,28,.85);border-color:transparent}
 .streak i.b{background:rgba(255,159,28,.4);border-color:transparent}
+.streak i.x{background:var(--steel);border-color:transparent}
 .streak i.fut{opacity:.35}
 .streak-key{display:flex;gap:14px;margin-top:9px;font-size:11px;color:var(--steel)}
 .streak-key span{display:flex;align-items:center;gap:5px}
@@ -460,7 +498,7 @@ main{
   <nav class="tabs">
     <button class="tab on" data-go="today">
       <svg viewBox="0 0 24 24"><rect x="2.5" y="9" width="3" height="6" rx="1.2"/><rect x="6.5" y="6.5" width="3.2" height="11" rx="1.4"/><rect x="14.3" y="6.5" width="3.2" height="11" rx="1.4"/><rect x="18.5" y="9" width="3" height="6" rx="1.2"/><path d="M9.7 12h4.6"/></svg>
-      Today
+      Week
     </button>
     <button class="tab" data-go="history">
       <svg viewBox="0 0 24 24"><path d="M3 20V4"/><path d="M3 20h18"/><path d="m6.5 15.5 4-4.5 3.5 3 5.5-6.5"/></svg>
@@ -842,85 +880,148 @@ function setsLine(sets){
   return sets.map(x => nice(x.weight) + '×' + x.reps).join(' · ');
 }
 
-/* ---- TODAY ---- */
+/* ---- WEEK ----
+   The main screen is the training week. Drag a workout pill onto another day to
+   move it (dropping onto a day that already has one swaps them); tap a pill to
+   cycle it; tap a row to open that day's exercises inline. Today is expanded by
+   default so logging a set is still two taps from launch. */
+
+let openDay = null;
+
+// Monday-first week containing today — a training week reads better than a
+// calendar week starting on Sunday.
+function weekDays(){
+  const now = new Date(); now.setHours(0,0,0,0);
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const out = [];
+  for(let i=0;i<7;i++){
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    out.push({
+      idx: d.getDay(),
+      date: localDate(d),
+      label: DAY3[d.getDay()],
+      isToday: d.getTime() === now.getTime(),
+      isFuture: d.getTime() > now.getTime(),
+      routineId: schedFor(d.getDay())
+    });
+  }
+  return out;
+}
 
 function renderToday(){
   const root = $('#s-today');
   root.innerHTML = '';
-  const now = new Date(), today = localDate(now);
-  const dow = now.getDay();
-  const schedId = schedFor(dow);
-  const sess = sessionOn(today);
-  const rid = (sess && sess.routineId) || schedId;
-  const r = routine(rid);
+  const now = new Date();
+  const week = weekDays();
+  const today = localDate(now);
+  if(openDay === null) openDay = today;
 
   root.append(bannerStack());
 
+  const n = trainingDays().length;
   root.append(el('div', { class:'today-head' },
-    el('div', { class:'micro' }, DAYS[dow].toUpperCase() + ' · ' + now.getDate() + ' ' + MON3[now.getMonth()]),
-    el('h1', { class:'title', style:'margin-top:6px' }, r ? r.name : 'Rest day'),
-    r && r.subtitle ? el('div', { class:'sub', style:'margin-top:4px' }, r.subtitle) : null
+    el('div', { class:'micro' }, DAYS[now.getDay()].toUpperCase() + ' · ' + now.getDate() + ' ' + MON3[now.getMonth()]),
+    el('h1', { class:'title', style:'margin-top:6px' }, 'This week'),
+    el('div', { class:'sub', style:'margin-top:4px' },
+      n + ' training day' + (n===1?'':'s') + ' · drag a workout to move it')
   ));
 
+  const list = el('div', { class:'week' });
+  week.forEach(day => list.append(weekRow(day, today)));
+  root.append(list);
+}
+
+function weekRow(day, today){
+  const r = routine(day.routineId);
+  const sess = sessionOn(day.date);
+  const sets = sess ? setCount(sess) : 0;
+  const open = openDay === day.date;
+
+  const pill = el('div', {
+    class: 'pill' + (r ? '' : ' rest'),
+    role:'button',
+    'aria-label': (r ? r.name : 'Rest') + ' on ' + DAYS[day.idx] + ' — drag to move',
+    onpointerdown: e => pillDown(e, day)
+  },
+    r ? el('span', { class:'grip' }, el('i', {})) : null,
+    el('span', {}, r ? r.name : 'Rest')
+  );
+
+  const head = el('div', { class:'wk-head', onclick: e => {
+    if(e.target.closest('.pill')) return;
+    openDay = open ? null : day.date;
+    renderToday();
+  }},
+    el('span', { class:'wk-d' }, day.label),
+    el('span', { class:'wk-mid' }, pill,
+      sets ? el('span', { class:'wk-badge' }, sets + ' set' + (sets===1?'':'s')) : null),
+    el('span', { class:'wk-chev' }, '›')
+  );
+
+  const row = el('div', {
+    class:'wk' + (day.isToday ? ' today' : '') + (open ? ' open' : ''),
+    'data-idx': day.idx
+  }, head);
+
+  if(open) row.append(dayBody(day, today));
+  return row;
+}
+
+function dayBody(day, today){
+  const r = routine(day.routineId);
+  const wrap = el('div', { class:'wk-body' });
+
   if(!r){
-    root.append(el('div', { class:'card rest-day', style:'margin-top:18px' },
-      el('div', { class:'big' }, 'Nothing scheduled'),
-      el('div', { class:'sub', style:'margin-top:6px;margin-bottom:16px' }, 'Recover. Or train anyway:'),
-      el('div', { class:'row-btns' }, S.routines.map(x =>
-        el('button', { class:'btn sm', style:'flex:1',
-          onclick:()=>{ ensureSession(today, x.id); save(); renderToday(); } }, x.name)
-      ))
-    ));
-    root.append(scheduleShortcut());
-    return;
+    wrap.append(el('div', { class:'note' },
+      'Rest day. Drag a workout onto it to train here instead, or tap ',
+      el('b', {}, 'Rest'), ' to pick one.'));
+    return wrap;
   }
 
-  const s = sess;
-  const sets = s ? setCount(s) : 0;
-  const vol  = s ? volume(s) : 0;
-  const elapsed = sessionElapsed(s);
+  const sess = sessionOn(day.date);
+  const sets = sess ? setCount(sess) : 0;
 
-  root.append(el('div', { class:'stats' },
-    el('div', { class:'stat' }, el('span',{class:'micro'},'Sets'),
-      el('div',{class:'v num'}, String(sets))),
+  wrap.append(el('div', { class:'stats', style:'margin-top:10px' },
+    el('div', { class:'stat' }, el('span',{class:'micro'},'Sets'), el('div',{class:'v num'}, String(sets))),
     el('div', { class:'stat' }, el('span',{class:'micro'},'Volume'),
-      el('div',{class:'v num'}, nice(vol), el('span',{class:'u'}, unit()))),
+      el('div',{class:'v num'}, nice(sess ? volume(sess) : 0), el('span',{class:'u'}, unit()))),
     el('div', { class:'stat' }, el('span',{class:'micro'},'Time'),
-      el('div',{class:'v num'}, sets ? dur(elapsed) : '—'))
+      el('div',{class:'v num'}, sets ? dur(sessionElapsed(sess)) : '—'))
   ));
 
   const list = el('div', { class:'exs' });
-  r.exercises.forEach(ex => list.append(exerciseRow(ex, s, today)));
-  root.append(list);
+  r.exercises.forEach(ex => list.append(exerciseRow(ex, sess, day.date, day.isFuture)));
+  wrap.append(list);
 
-  root.append(el('button', {
-    class:'btn ghost', style:'margin-top:10px',
-    onclick:()=>addAdhoc(today, rid)
-  }, '+  Add an exercise'));
-
-  if(sets){
-    root.append(el('div', { class:'sec' },
-      el('button', { class:'btn', onclick:()=>finishSession(today) },
-        s.finished ? 'Session finished · reopen' : 'Finish session')
-    ));
-    if(s.hr) root.append(hrPanel(s));
-    else root.append(el('button', {
-      class:'btn ghost', style:'margin-top:10px', onclick:()=>openHealth(today)
-    }, '♥  Import heart rate'));
+  if(day.isFuture){
+    wrap.append(el('div', { class:'note' }, 'Coming up. Numbers shown are the last time you did each one.'));
+    return wrap;
   }
 
-  root.append(scheduleShortcut());
+  wrap.append(el('button', { class:'btn ghost', style:'margin-top:10px',
+    onclick:()=>addAdhoc(day.date, day.routineId) }, '+  Add an exercise'));
+
+  if(sets){
+    wrap.append(el('button', { class:'btn', style:'margin-top:10px',
+      onclick:()=>finishSession(day.date) },
+      sess.finished ? 'Session finished · reopen' : 'Finish session'));
+    if(sess.hr) wrap.append(hrPanel(sess));
+    else wrap.append(el('button', { class:'btn ghost', style:'margin-top:10px',
+      onclick:()=>openHealth(day.date) }, '♥  Import heart rate'));
+  }
+  return wrap;
 }
 
-function exerciseRow(ex, s, today){
+function exerciseRow(ex, s, dateKey, locked){
   const e = s ? s.entries.find(x => (ex.id && x.exerciseId === ex.id) || x.exerciseName === ex.name) : null;
   const done = !!(e && e.sets.length);
-  const last = lastTime(ex, today);
+  const last = lastTime(ex, dateKey);
 
   const lines = [];
   if(done){
     lines.push(el('div', { class:'ex-line today' },
-      el('span',{class:'tag'},'TODAY'), el('b', {}, setsLine(e.sets))));
+      el('span',{class:'tag'}, 'DONE'), el('b', {}, setsLine(e.sets))));
   }
   if(last){
     lines.push(el('div', { class:'ex-line' },
@@ -929,19 +1030,94 @@ function exerciseRow(ex, s, today){
     lines.push(el('div', { class:'ex-line' }, el('span',{class:'tag'},'LAST'), 'no history yet'));
   }
 
-  return el('button', { class:'ex' + (done ? ' done' : ''), onclick:()=>openLog(ex, today) },
+  return el('button', {
+    class:'ex' + (done ? ' done' : '') + (locked ? ' locked' : ''),
+    disabled: locked ? 'disabled' : null,
+    onclick: locked ? null : ()=>openLog(ex, dateKey)
+  },
     el('span', { class:'ex-mark' }),
     el('span', { class:'ex-body' }, el('span', { class:'ex-name' }, ex.name), lines),
     el('span', { class:'ex-count' }, done ? String(e.sets.length) : '')
   );
 }
 
-function scheduleShortcut(){
-  const days = trainingDays().length;
-  return el('div', { class:'sec' },
-    el('button', { class:'btn ghost', onclick:()=>openSchedule() },
-      'Schedule · ' + days + ' day' + (days===1?'':'s') + ' a week')
-  );
+/* ---- DRAG A WORKOUT BETWEEN DAYS ----
+   Pointer events, not HTML5 drag-and-drop, because iOS Safari does not fire
+   dragstart from touch. touch-action:none on the pill stops the page scrolling
+   under the finger mid-drag. */
+
+let drag = null;
+
+function pillDown(e, day){
+  if(e.button !== undefined && e.button !== 0) return;
+  const pill = e.currentTarget;
+  if(day.routineId == null){          // nothing to drag off a rest day — tap to set one
+    drag = { from: day.idx, pill, moved: false, over: null, ghost: null };
+  } else {
+    const r = pill.getBoundingClientRect();
+    const ghost = pill.cloneNode(true);
+    ghost.classList.add('ghost');
+    ghost.style.width = r.width + 'px';
+    ghost.style.left = r.left + 'px';
+    ghost.style.top = r.top + 'px';
+    document.body.append(ghost);
+    drag = { from: day.idx, pill, ghost, moved: false, over: null,
+             ox: e.clientX - r.left, oy: e.clientY - r.top };
+  }
+  e.preventDefault();
+  // Capture keeps the events coming if the finger leaves the pill, but it is a
+  // nicety — listeners go on window so a failed capture cannot strand the drag.
+  try { pill.setPointerCapture(e.pointerId); } catch(_){}
+  window.addEventListener('pointermove', pillMove);
+  window.addEventListener('pointerup', pillUp);
+  window.addEventListener('pointercancel', pillUp);
+}
+
+function pillMove(e){
+  if(!drag) return;
+  if(!drag.ghost) return;                       // rest pill: tap only
+  if(!drag.moved){
+    drag.moved = true;
+    drag.pill.classList.add('dragging');
+    haptic(12);
+  }
+  drag.ghost.style.left = (e.clientX - drag.ox) + 'px';
+  drag.ghost.style.top  = (e.clientY - drag.oy) + 'px';
+
+  // Which row is the finger over? Measured directly against each row's box
+  // rather than elementFromPoint — the finger is usually over the ghost, and
+  // hit-testing through a dragged element is unreliable on touch.
+  drag.over = null;
+  $$('.wk').forEach(n => {
+    n.classList.remove('drop');
+    const b = n.getBoundingClientRect();
+    if(e.clientY >= b.top && e.clientY <= b.bottom && +n.dataset.idx !== drag.from){
+      n.classList.add('drop');
+      drag.over = +n.dataset.idx;
+    }
+  });
+}
+
+function pillUp(){
+  if(!drag) return;
+  const { from, over, moved, ghost } = drag;
+  window.removeEventListener('pointermove', pillMove);
+  window.removeEventListener('pointerup', pillUp);
+  window.removeEventListener('pointercancel', pillUp);
+  if(ghost) ghost.remove();
+  $$('.wk').forEach(n => n.classList.remove('drop'));
+  drag = null;
+
+  if(moved && over !== null && over !== from){
+    // Swap, which doubles as a plain move when the target day is a rest day.
+    const a = schedFor(from), b = schedFor(over);
+    S.schedule[over] = a;
+    S.schedule[from] = b;
+    save(); haptic(28); toast(routine(a).name + ' → ' + DAYS[over]);
+  } else if(!moved){
+    cycleDay(from); haptic();
+  }
+  renderToday();
 }
 
 function finishSession(date){
@@ -1404,9 +1580,13 @@ function streakGrid(){
   for(let i=0;i<56+7;i++){
     const d = new Date(start); d.setDate(start.getDate()+i);
     if(d > today){ grid.append(el('i',{class:'fut'})); continue; }
-    const rid = trained.get(localDate(d));
-    grid.append(el('i', { class: rid == null ? '' : (rid === S.routines[0]?.id ? 'a' : 'b'),
-      title: localDate(d) }));
+    const key = localDate(d);
+    // A day with sets logged always reads as trained, even if no routine was
+    // attached to it (ad-hoc session, or history where the routine is unknown).
+    const cls = !trained.has(key) ? ''
+      : trained.get(key) === S.routines[0]?.id ? 'a'
+      : trained.get(key) === S.routines[1]?.id ? 'b' : 'x';
+    grid.append(el('i', { class: cls, title: key }));
   }
   wrap.append(grid);
   wrap.append(el('div', { class:'streak-key' },
@@ -2122,10 +2302,10 @@ setInterval(() => {
   paintRest();
   if(box.running) paintBox();
   // Keep the session clock running while it is on screen.
-  if(screen === 'today' && !sheetOpen){
+  if(screen === 'today' && !sheetOpen && openDay === localDate()){
     const s = sessionOn(localDate());
     if(s && s.startedAt && !sessionFinished(s)){
-      const st = $('#s-today .stats .stat:last-child .v');
+      const st = $('#s-today .wk.open .stats .stat:last-child .v');
       if(st) st.textContent = dur(sessionElapsed(s));
     }
   }
