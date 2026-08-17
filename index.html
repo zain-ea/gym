@@ -40,14 +40,15 @@
   --sal:env(safe-area-inset-left, 0px);
   --sar:env(safe-area-inset-right, 0px);
 
-  /* iOS reserves 34px under the tab bar for the home indicator, which reads as
-     a dead strip below the icons. Claw most of it back — enough clearance that
-     the indicator never sits on a label, but the icons sit low like a native
-     tab bar rather than floating above a gap. */
-  --tabpad:max(4px, calc(var(--sab) - 22px));
-
   --pad:16px;
-  --tabh:52px;
+  /* Tab bar sits tight to the bottom. 46px of tab (still over the 44px tap
+     minimum) plus a flat 10px below the labels — no safe-area maths, because
+     nested max()/calc()/env() inside a custom property is exactly the sort of
+     thing that silently resolves to something unexpected on one browser. 10px
+     rather than 0 because iOS paints the home indicator in that strip and at 0
+     the white bar cuts through the words. */
+  --tabh:46px;
+  --tabbot:10px;
   --barh:52px;
   --r:14px;
 
@@ -133,15 +134,14 @@ main{
 .tabs{
   flex:none;z-index:40;
   display:grid;grid-template-columns:repeat(5,1fr);
-  padding:0 var(--sar) var(--tabpad) var(--sal);
+  padding:0 var(--sar) var(--tabbot) var(--sal);
   background:rgba(15,18,22,.86);
   backdrop-filter:saturate(140%) blur(14px);
   -webkit-backdrop-filter:saturate(140%) blur(14px);
   border-top:1px solid var(--hair);
 }
 .tab{
-  height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  padding-top:2px;
+  height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;
   color:var(--steel);font-size:9.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;
 }
 .tab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
@@ -345,8 +345,7 @@ main{
   display:flex;flex-direction:column;
   background:#12161B;border:1px solid var(--hair2);border-bottom:0;
   border-radius:20px 20px 0 0;
-  /* keeps SAVE clear of the home-indicator swipe area without a dead strip */
-  padding-bottom:max(12px, calc(var(--sab) - 14px));
+  padding-bottom:16px;   /* clear of the home-indicator swipe, no dead strip */
   animation:up .22s cubic-bezier(.2,.9,.3,1);
   box-shadow:0 -20px 60px rgba(0,0,0,.5);
 }
@@ -518,7 +517,7 @@ main{
 /* ---- MISC ---- */
 .toast{
   position:fixed;left:50%;transform:translateX(-50%);
-  bottom:calc(var(--tabpad) + var(--tabh) + 14px);z-index:80;
+  bottom:calc(var(--tabh) + var(--tabbot) + 14px);z-index:80;
   background:#242B34;border:1px solid var(--hair2);border-radius:12px;
   padding:11px 16px;font-size:13.5px;font-weight:600;max-width:calc(100vw - 32px);
   box-shadow:0 10px 30px rgba(0,0,0,.5);animation:up .2s ease;text-align:center;
@@ -2807,7 +2806,13 @@ function renderSettings(){
         });
       }},'Erase all data'),
       el('div',{class:'micro',style:'margin-top:14px;text-align:center'},
-        'Gym · ' + APP_VERSION + ' · works offline')
+        'Gym · ' + APP_VERSION + ' · works offline'),
+      el('div',{class:'micro',style:'margin-top:4px;text-align:center;opacity:.7'},
+        'tab bar ' + (parseInt(getComputedStyle(document.documentElement)
+          .getPropertyValue('--tabh')) || 0) + 'px + ' +
+        (parseInt(getComputedStyle(document.documentElement)
+          .getPropertyValue('--tabbot')) || 0) + 'px · safe-area ' +
+        (getComputedStyle(document.documentElement).getPropertyValue('--sab').trim() || '0px'))
     )));
 }
 
@@ -2889,7 +2894,9 @@ if(window.visualViewport){
 
 /* ---- BOOT ---- */
 
-const APP_VERSION = 'v1';
+// Bump alongside CACHE in sw.js. Shown in Settings so it is possible to tell at
+// a glance whether the phone is running the latest build or a cached one.
+const APP_VERSION = 'build 9';
 let swUpdate = false;
 
 S = load();
