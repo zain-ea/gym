@@ -48,7 +48,7 @@
      rather than 0 because iOS paints the home indicator in that strip and at 0
      the white bar cuts through the words. */
   --tabh:46px;
-  --tabbot:10px;
+  --tabbot:2px;
   --barh:52px;
   --r:14px;
 
@@ -143,6 +143,7 @@ main{
 .tab{
   height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;
   color:var(--steel);font-size:9.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;
+  line-height:1;   /* kills the leading under the label, which reads as padding */
 }
 .tab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .tab.on{color:var(--chalk)}
@@ -476,6 +477,9 @@ main{
 .cal + .cal{margin-top:22px}
 .cal-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
 .cal-title{font-size:16px;font-weight:750;letter-spacing:-.01em}
+.cal-count{flex:none;font-size:13px;color:var(--steel);font-weight:600}
+.cal-count b{font-size:16px;font-weight:800;color:var(--chalk)}
+.cal-count b.hit{color:var(--amp)}
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:5px}
 .cal-dow span{text-align:center;font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--steel)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
@@ -1254,6 +1258,14 @@ function renderDayScreen(root, dateKey){
    The day's routine, grouped by muscle, with each lift's target alongside so
    the choice is informed. Picking one drops it onto the day and returns. */
 
+// The most recent session of this routine that actually had sets logged.
+function previousWorkout(rid, beforeDate){
+  return [...S.sessions]
+    .filter(s => s.date < beforeDate && s.entries.some(e => e.sets.length) &&
+                 (rid ? s.routineId === rid : true))
+    .sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+}
+
 function openPicker(dateKey, rid){
   const r = routine(rid);
   const sess = sessionOn(dateKey);
@@ -1261,6 +1273,33 @@ function openPicker(dateKey, rid){
   const pool = (r ? r.exercises : []).filter(ex => !already.has(ex.name));
 
   const body = el('div');
+
+  // Same exercises as last time, in the same order — one tap instead of six.
+  const prev = previousWorkout(rid, dateKey);
+  if(prev){
+    const bring = prev.entries.filter(e => e.sets.length && !already.has(e.exerciseName));
+    const pd = parseDate(prev.date);
+    body.append(el('button', {
+      class:'btn' + (bring.length ? ' primary' : ''),
+      disabled: bring.length ? null : 'disabled',
+      style:'flex-direction:column;gap:3px;min-height:60px',
+      onclick:()=>{
+        const s = ensureSession(dateKey, rid);
+        bring.forEach(e => entryFor(s, { id:e.exerciseId, name:e.exerciseName }));
+        save(); haptic(24); closeSheet(); renderToday();
+        toast(bring.length + ' exercise' + (bring.length===1?'':'s') + ' brought in');
+      }
+    },
+      el('span', {}, bring.length ? '⤓  Import previous workout' : 'Previous workout already added'),
+      el('span', { style:'font-size:11.5px;font-weight:600;opacity:.72' },
+        DAY3[pd.getDay()] + ' ' + pd.getDate() + ' ' + MON3[pd.getMonth()] + ' · ' +
+        prev.entries.filter(e=>e.sets.length).length + ' exercises' +
+        (bring.length && bring.length !== prev.entries.filter(e=>e.sets.length).length
+          ? ' · ' + bring.length + ' to add' : ''))
+    ));
+    body.append(el('div', { class:'micro', style:'margin-top:10px;text-align:center' },
+      'or pick individually'));
+  }
 
   if(!pool.length){
     body.append(el('div', { class:'note' },
@@ -1982,14 +2021,21 @@ function monthCalendars(sessions){
     const cal = el('div', { class:'cal' });
     const daysInMonth = new Date(y, m+1, 0).getDate();
 
-    let trainedCount = 0;
+    // Trained vs planned. Planned is the actual count of scheduled training
+    // weekdays falling in this month — 4 a week is 18 in some months and 17 in
+    // others, so counting beats multiplying. It uses today's schedule, which is
+    // the only one on record, so older months are measured against it too.
+    let trainedCount = 0, planned = 0;
     for(let day=1; day<=daysInMonth; day++){
       if(byDate.has(y + '-' + pad2(m+1) + '-' + pad2(day))) trainedCount++;
+      if(schedFor(new Date(y, m, day).getDay())) planned++;
     }
 
     cal.append(el('div', { class:'cal-head' },
       el('div', { class:'cal-title' }, MONTHS[m] + ' ' + y),
-      el('div', { class:'micro' }, trainedCount + ' session' + (trainedCount===1?'':'s'))
+      el('div', { class:'cal-count num' },
+        el('b', { class: trainedCount >= planned ? 'hit' : '' }, String(trainedCount)),
+        el('span', {}, ' / ' + planned))
     ));
 
     cal.append(el('div', { class:'cal-dow' },
@@ -2896,7 +2942,7 @@ if(window.visualViewport){
 
 // Bump alongside CACHE in sw.js. Shown in Settings so it is possible to tell at
 // a glance whether the phone is running the latest build or a cached one.
-const APP_VERSION = 'build 9';
+const APP_VERSION = 'build 10';
 let swUpdate = false;
 
 S = load();
