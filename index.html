@@ -229,9 +229,14 @@ main{
 .ex-line.goal .up{color:var(--amp);font-weight:800}
 .ex-count{
   flex:none;align-self:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
-  color:var(--steel);min-width:26px;text-align:right;
+  color:var(--steel);min-width:22px;text-align:right;
 }
 .ex.done .ex-count{color:var(--amp)}
+.ex-x{
+  flex:none;align-self:center;width:32px;height:32px;border-radius:50%;
+  color:var(--steel);font-size:19px;line-height:1;display:grid;place-items:center;margin-left:2px;
+}
+.ex-x:active{background:rgba(255,107,107,.16);color:#FF6B6B}
 
 .rest-day{text-align:center;padding:30px 16px}
 .rest-day .big{font-size:26px;font-weight:800;letter-spacing:-.02em}
@@ -1195,39 +1200,47 @@ function renderDayScreen(root, dateKey){
     return;
   }
 
-  // Plan for the day: what to load, and how many lifts are due a jump.
-  const todo = r.exercises.filter(ex => {
-    const e = sess && sess.entries.find(x => (ex.id && x.exerciseId === ex.id) || x.exerciseName === ex.name);
-    return !(e && e.sets.length);
-  });
-  const targets = todo.map(ex => targetFor(ex, dateKey)).filter(Boolean);
-  const ups = targets.filter(t => t.increase).length;
-  const plannedVolume = targets.reduce((t,x) => t + x.weight * x.reps.reduce((a,b)=>a+b,0), 0);
+  // Only what has actually been added to the day — build it up as you go rather
+  // than wading past twenty rows you are not touching.
+  const entries = sess ? sess.entries : [];
+  const ups = entries.filter(e => {
+    if(e.sets.length) return false;
+    const t = targetFor({ id:e.exerciseId, name:e.exerciseName }, dateKey);
+    return t && t.increase;
+  }).length;
 
   root.append(el('div', { class:'stats' },
-    el('div', { class:'stat' }, el('span',{class:'micro'}, sets ? 'Sets done' : 'Sets to do'),
-      el('div',{class:'v num'}, sets ? String(sets) : String(targets.reduce((t,x)=>t+x.reps.length,0)))),
-    el('div', { class:'stat' }, el('span',{class:'micro'}, sets ? 'Volume' : 'Target volume'),
-      el('div',{class:'v num'}, nice(sets ? volume(sess) : plannedVolume), el('span',{class:'u'}, unit()))),
-    el('div', { class:'stat' }, el('span',{class:'micro'},'Going up'),
-      el('div',{class:'v num', style: ups ? 'color:var(--amp)' : ''}, String(ups)))
+    el('div', { class:'stat' }, el('span',{class:'micro'},'Exercises'),
+      el('div',{class:'v num'}, String(entries.length))),
+    el('div', { class:'stat' }, el('span',{class:'micro'},'Sets'),
+      el('div',{class:'v num'}, String(sets))),
+    el('div', { class:'stat' }, el('span',{class:'micro'},'Volume'),
+      el('div',{class:'v num'}, nice(sess ? volume(sess) : 0), el('span',{class:'u'}, unit())))
   ));
 
-  if(targets.length){
-    root.append(el('div', { class:'note' },
-      ups ? el('b', {}, ups + (ups===1 ? ' lift is' : ' lifts are') + ' due a weight increase today. ')
-          : el('b', {}, 'No weight jumps due — chase reps today. '),
-      'Targets come from your own numbers: hit the top of your rep range on every set and the weight goes up by your usual step for that exercise.'));
+  if(!entries.length){
+    root.append(el('div', { class:'card rest-day', style:'margin-top:14px' },
+      el('div', { class:'big' }, 'Nothing added yet'),
+      el('div', { class:'sub', style:'margin-top:6px' },
+        'Add the lifts as you get to them. Targets are waiting for each one.')
+    ));
+  } else {
+    const list = el('div', { class:'exs' });
+    entries.forEach(e =>
+      list.append(exerciseRow({ id:e.exerciseId, name:e.exerciseName }, sess, dateKey)));
+    root.append(list);
   }
 
-  const list = el('div', { class:'exs' });
-  r.exercises.forEach(ex => list.append(exerciseRow(ex, sess, dateKey)));
-  root.append(list);
+  root.append(el('button', {
+    class:'btn' + (entries.length ? ' ghost' : ' primary'),
+    style:'margin-top:' + (entries.length ? '10px' : '14px'),
+    onclick:()=>openPicker(dateKey, rid)
+  }, entries.length ? '+  Add another exercise' : '+  Add exercise'));
 
-  root.append(el('button', { class:'btn ghost', style:'margin-top:10px',
-    onclick:()=>addAdhoc(dateKey, rid) }, '+  Add an exercise'));
+  if(ups) root.append(el('div', { class:'note' },
+    el('b', {}, ups + (ups===1 ? ' lift is' : ' lifts are') + ' due a weight increase.')));
 
-  root.append(el('button', { class:'btn', style:'margin-top:10px',
+  root.append(el('button', { class:'btn', style:'margin-top:14px',
     onclick:()=>finishSession(dateKey) },
     (sess && sess.finished) ? 'Marked done · undo' : 'Mark this workout done'));
 
@@ -1236,6 +1249,63 @@ function renderDayScreen(root, dateKey){
     else root.append(el('button', { class:'btn ghost', style:'margin-top:10px',
       onclick:()=>openHealth(dateKey) }, '♥  Import heart rate'));
   }
+}
+
+/* ---- EXERCISE PICKER ----
+   The day's routine, grouped by muscle, with each lift's target alongside so
+   the choice is informed. Picking one drops it onto the day and returns. */
+
+function openPicker(dateKey, rid){
+  const r = routine(rid);
+  const sess = sessionOn(dateKey);
+  const already = new Set((sess ? sess.entries : []).map(e => e.exerciseName));
+  const pool = (r ? r.exercises : []).filter(ex => !already.has(ex.name));
+
+  const body = el('div');
+
+  if(!pool.length){
+    body.append(el('div', { class:'note' },
+      r ? 'Every exercise in ' + r.name + ' is already on this day.'
+        : 'No routine on this day yet.'));
+  } else {
+    const groups = new Map(MUSCLE_ORDER.map(m => [m, []]));
+    pool.forEach(ex => groups.get(muscleOf(ex.name)).push(ex));
+
+    MUSCLE_ORDER.forEach(m => {
+      const list = groups.get(m);
+      if(!list.length) return;
+      body.append(el('div', { class:'sec-head', style:'margin-top:16px' },
+        el('span',{class:'micro'}, m)));
+      const box = el('div', { class:'lifts' });
+      list.forEach(ex => {
+        const t = targetFor(ex, dateKey);
+        const last = lastTime(ex, dateKey);
+        box.append(el('button', { class:'lift', onclick:()=>{
+          const s = ensureSession(dateKey, rid);
+          entryFor(s, ex);
+          save(); haptic(16); closeSheet(); renderToday();
+          toast(ex.name + ' added');
+        }},
+          el('span', { class:'lift-mid' },
+            el('div', { class:'lift-nm' }, ex.name),
+            el('div', { class:'lift-meta' },
+              last ? setsLine(last.entry.sets) : 'no history yet')),
+          t ? el('span', { class:'lift-w' },
+                el('div', { class:'v num', style:'color:var(--cool);font-size:15px' },
+                  nice(t.weight) + unit()),
+                el('div', { class:'d num', style:'color:var(--cool)' }, t.reps.join(', '))) : null,
+          t && t.increase ? el('span', { class:'ex-count', style:'color:var(--amp)' }, '↑')
+                          : el('span', { class:'ex-count' }, '+')
+        ));
+      });
+      body.append(box);
+    });
+  }
+
+  body.append(el('button', { class:'btn ghost', style:'margin-top:16px',
+    onclick:()=>addAdhoc(dateKey, rid) }, 'Something else…'));
+
+  openSheet({ title:'Add exercise', body:[body] });
 }
 
 function exerciseRow(ex, s, dateKey){
@@ -1262,14 +1332,36 @@ function exerciseRow(ex, s, dateKey){
       target.increase ? el('span',{class:'up'}, ' ↑') : null));
   }
 
-  return el('button', {
+  // A div, not a button, because it contains its own remove button and nesting
+  // buttons is invalid.
+  return el('div', {
     class:'ex' + (done ? ' done' : ''),
-    onclick: ()=>openLog(ex, dateKey)
+    role:'button', tabindex:'0',
+    onclick: ev => { if(!ev.target.closest('.ex-x')) openLog(ex, dateKey); },
+    onkeydown: ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openLog(ex, dateKey); } }
   },
     el('span', { class:'ex-mark' }),
     el('span', { class:'ex-body' }, el('span', { class:'ex-name' }, ex.name), lines),
-    el('span', { class:'ex-count' }, done ? String(e.sets.length) : '')
+    done ? el('span', { class:'ex-count' }, String(e.sets.length)) : null,
+    el('button', { class:'ex-x', 'aria-label':'Remove ' + ex.name + ' from this day',
+      onclick: ev => { ev.stopPropagation(); removeFromDay(ex, dateKey); } }, '×')
   );
+}
+
+function removeFromDay(ex, dateKey){
+  const s = sessionOn(dateKey); if(!s) return;
+  const i = s.entries.findIndex(x => (ex.id && x.exerciseId === ex.id) || x.exerciseName === ex.name);
+  if(i < 0) return;
+  const drop = () => {
+    s.entries.splice(i, 1);
+    if(!s.entries.length && !s.finished) S.sessions = S.sessions.filter(x => x !== s);
+    save(); renderToday(); renderExercises(); haptic(14);
+  };
+  if(s.entries[i].sets.length){
+    confirmSheet('Remove ' + ex.name + '?',
+      'It has ' + s.entries[i].sets.length + ' set' + (s.entries[i].sets.length===1?'':'s') +
+      ' logged against this day. Those numbers go with it.', drop);
+  } else drop();
 }
 
 /* ---- DRAG A WORKOUT BETWEEN DAYS ----
@@ -1393,7 +1485,7 @@ function addAdhoc(date, rid){
       const s = ensureSession(date, rid);
       entryFor(s, { id:null, name });
       save(); closeSheet(); renderToday();
-      openLog({ id:null, name }, date);
+      toast(name + ' added');
       return true;
     }}
   });
