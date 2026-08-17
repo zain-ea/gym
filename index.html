@@ -3009,13 +3009,36 @@ function renderSettings(){
    when a site is added to the home screen, so an install predating
    viewport-fit=cover keeps the short box until it is re-added. */
 
+// Read what env(safe-area-inset-*) actually resolves to, rather than trusting a
+// CSS var that may have been overridden.
+function safeAreaPx(side){
+  const probe = el('div', { style:
+    'position:fixed;left:-9999px;top:0;width:1px;pointer-events:none;' +
+    'height:env(safe-area-inset-' + side + ', 0px)' });
+  document.body.append(probe);
+  const v = Math.round(parseFloat(getComputedStyle(probe).height)) || 0;
+  probe.remove();
+  return v;
+}
+
 function viewportShortfall(){
   const scr = Math.round(screen.height || 0);
   const win = Math.round(window.innerHeight || 0);
-  if(!scr || !win) return 0;
-  // Portrait only — in landscape screen.height is the short edge.
-  if(win > scr) return 0;
+  if(!scr || !win || win > scr) return 0;   // portrait only, and screen.height is not always reported
   return scr - win;
+}
+
+// A tall touch device that reports NO bottom safe-area inset is the signature of
+// viewport-fit=cover not being applied: every modern iPhone has a home indicator
+// and reports 34px when the page really does extend under it. When it reports 0,
+// the web view has been inset instead — the strip below is outside the page.
+function viewportFitMissing(){
+  // navigator.standalone exists only on iOS Safari, which keeps this off Android
+  // and off desktop browsers emulating a phone.
+  if(typeof navigator.standalone === 'undefined') return false;
+  if(!matchMedia('(pointer: coarse)').matches) return false;
+  if((window.innerHeight || 0) < 700) return false;      // older/smaller iPhones legitimately report 0
+  return safeAreaPx('bottom') === 0;
 }
 
 function viewportLine(){
@@ -3024,21 +3047,29 @@ function viewportLine(){
   const vv = window.visualViewport ? Math.round(window.visualViewport.height) : 0;
   const app = $('#app') ? Math.round($('#app').getBoundingClientRect().height) : 0;
   return 'win ' + Math.round(window.innerHeight) + ' · vv ' + vv +
+         ' · outer ' + Math.round(window.outerHeight || 0) +
          ' · screen ' + Math.round(screen.height || 0) +
-         ' · app ' + app + ' · gap ' + gap + 'px';
+         ' · app ' + app + ' · gap ' + gap +
+         ' · safe ' + safeAreaPx('top') + '/' + safeAreaPx('bottom') +
+         ' · ' + (navigator.standalone === true ? 'installed' :
+                  navigator.standalone === false ? 'in Safari' : 'browser');
 }
 
 function shortViewportWarning(){
   const short = viewportShortfall();
-  if(short <= 8) return null;
+  const noFit = viewportFitMissing();
+  if(short <= 8 && !noFit) return null;
+
   return el('div', { class:'warn', style:'margin-top:12px;text-align:left' },
-    el('b', {}, 'This install is not using the full screen. '),
-    'The page is ' + Math.round(window.innerHeight || 0) + 'px tall but the display is ' +
-    Math.round(screen.height || 0) + 'px — a ' + short + 'px strip at the bottom is outside the app, ' +
-    'which is why the bar looks padded no matter what the padding is set to. ',
-    el('b', {}, 'Fix: '), 'delete the home screen icon, open the site in Safari, and Add to Home Screen again. ' +
-    'iOS records the display settings when the icon is created and will not update them otherwise. ' +
-    'Your data is kept — it lives with the website, not the icon.');
+    el('b', {}, 'The page is not filling the screen. '),
+    noFit
+      ? 'Your phone reports no bottom safe-area inset, which means the page is not being drawn under the home indicator. iOS has inset the web view instead, so there is a strip along the bottom that is outside the page entirely — that is the band under the tab bar, and no amount of styling can reach it. '
+      : 'The page is ' + Math.round(window.innerHeight || 0) + 'px tall but the display is ' +
+        Math.round(screen.height || 0) + 'px, so a ' + short + 'px strip at the bottom sits outside the page. ',
+    el('b', {}, 'Fix: '),
+    navigator.standalone === false
+      ? 'you are running this in Safari, where the bottom toolbar takes that space. Share → Add to Home Screen, then open it from the icon.'
+      : 'delete the home screen icon, open the site in Safari, and Add to Home Screen again. iOS records the display settings when the icon is created and never revisits them, so an icon made before those settings changed keeps the smaller box forever. Your data stays — it belongs to the website, not the icon.');
 }
 
 /* ---- SHEETS ---- */
@@ -3178,7 +3209,7 @@ if(window.visualViewport){
 
 // Bump alongside CACHE in sw.js. Shown in Settings so it is possible to tell at
 // a glance whether the phone is running the latest build or a cached one.
-const APP_VERSION = 'build 13';
+const APP_VERSION = 'build 14';
 let swUpdate = false;
 
 S = load();
