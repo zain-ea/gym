@@ -216,6 +216,10 @@ main{
 .ex-line b{font-weight:650;color:var(--chalk)}
 .ex-line .tag{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--steel);margin-right:6px}
 .ex-line.today .tag{color:var(--amp)}
+.ex-line.goal{color:var(--cool)}
+.ex-line.goal .tag{color:var(--cool)}
+.ex-line.goal b{color:var(--cool);font-weight:700}
+.ex-line.goal .up{color:var(--amp);font-weight:800}
 .ex-count{
   flex:none;align-self:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
   color:var(--steel);min-width:26px;text-align:right;
@@ -239,10 +243,6 @@ main{
 .wk-badge{font-size:11px;font-weight:700;color:var(--amp);font-variant-numeric:tabular-nums;flex:none}
 .wk-chev{color:var(--steel);font-size:15px;flex:none;transition:transform .18s;width:14px;text-align:center}
 .wk.open .wk-chev{transform:rotate(90deg)}
-.wk-body{padding:2px 12px 12px}
-.wk-body .exs{margin-top:8px}
-.wk-body .ex{background:#0E1116}
-.wk-body .ex.locked{opacity:.72}
 
 .pill{
   display:inline-flex;align-items:center;gap:7px;padding:7px 12px 7px 9px;border-radius:999px;
@@ -357,6 +357,10 @@ main{
   border:1px solid var(--hair);font-size:13px;font-variant-numeric:tabular-nums;color:var(--steel);
 }
 .ref b{color:var(--chalk);font-weight:650}
+.ref.goal{background:rgba(56,189,248,.09);border-color:rgba(56,189,248,.28);color:var(--cool);font-size:15px;font-weight:650}
+.ref.goal b{color:var(--cool);font-weight:750}
+.ref.goal .up{color:var(--amp);font-weight:800;font-size:13px}
+.ref.goal .why{margin-top:5px;font-size:12.5px;font-weight:400;color:var(--steel);line-height:1.45}
 
 .sugg{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
 
@@ -954,6 +958,88 @@ function setsLine(sets){
   return sets.map(x => nice(x.weight) + '×' + x.reps).join(' · ');
 }
 
+/* ---- TARGETS ----
+   Double progression, read off your own history rather than a generic template.
+   No AI and no network: the numbers you have already lifted contain everything
+   needed, and a formula gives the same answer in a gym basement with no signal.
+
+     - hit the top of your rep range on every set  ->  add one weight step
+     - otherwise                                  ->  same weight, one more rep
+
+   The weight step is YOUR usual jump for that exercise (the most common increase
+   in its history), so cable stacks move 1.25 and machines move 5, automatically. */
+
+// Percentile of a sorted-in-place copy. Used instead of max() so one freak
+// session cannot set a bar you never reach again.
+function pct(values, p){
+  if(!values.length) return 0;
+  const v = [...values].sort((a,b)=>a-b);
+  const i = Math.min(v.length-1, Math.max(0, Math.round((v.length-1) * p)));
+  return v[i];
+}
+
+// Your usual jump for this lift: the MEDIAN increase in its history, not the
+// smallest. The smallest is often a one-off half-plate that would stall you.
+function stepFor(name){
+  const d = series(name, 'top');
+  const ups = [];
+  for(let i=1;i<d.length;i++){
+    const x = Math.round((d[i].value - d[i-1].value) * 100) / 100;
+    if(x > 0 && x <= 10) ups.push(x);
+  }
+  if(!ups.length) return 2.5;
+  const med = pct(ups, 0.5);
+  return Math.min(5, Math.max(0.5, Math.round(med * 4) / 4));
+}
+
+// Top of the rep range is the 75th percentile of what you actually hit — a
+// number you reach often, not your all-time best.
+function repRange(name){
+  const all = [];
+  S.sessions.forEach(s => {
+    const e = s.entries.find(x => x.exerciseName === name);
+    if(e) e.sets.forEach(x => { if(x.reps > 0) all.push(x.reps); });
+  });
+  if(!all.length) return { bottom:8, top:12 };
+  const top = Math.min(15, Math.max(8, pct(all, 0.75)));
+  return { bottom: Math.max(5, top - 4), top };
+}
+
+function targetFor(ex, dateKey){
+  const last = lastTime(ex, dateKey);
+  if(!last) return null;
+  const sets = last.entry.sets.filter(s => s.reps > 0);
+  if(!sets.length) return null;
+
+  const w = Math.max(...sets.map(s => s.weight || 0));
+  const reps = sets.map(s => s.reps);
+  const { bottom, top } = repRange(ex.name);
+  const step = stepFor(ex.name);
+  const n = Math.min(3, Math.max(2, reps.length));
+
+  if(Math.min(...reps) >= top){
+    return {
+      weight: Math.round((w + step) * 100) / 100,
+      reps: Array(n).fill(bottom),
+      increase: true,
+      reason: 'You hit ' + top + ' on every set last time — go up ' + nice(step) + unit() +
+              ' and rebuild from ' + bottom + ' reps.'
+    };
+  }
+
+  const out = reps.slice();
+  let idx = 0;
+  for(let i=1;i<out.length;i++) if(out[i] < out[idx]) idx = i;
+  out[idx] = Math.min(top, out[idx] + 1);
+  return {
+    weight: w,
+    reps: out,
+    increase: false,
+    reason: 'Same weight. One more rep on set ' + (idx+1) + '. Reach ' + top +
+            ' across all sets and the weight goes up ' + nice(step) + unit() + '.'
+  };
+}
+
 /* ---- WEEK ----
    The main screen is the training week. Drag a workout pill onto another day to
    move it (dropping onto a day that already has one swaps them); tap a pill to
@@ -1074,7 +1160,6 @@ function toggleDone(day){
 function renderDayScreen(root, dateKey){
   const d = parseDate(dateKey);
   const today = localDate();
-  const isFuture = dateKey > today;
   const sess = sessionOn(dateKey);
   const rid = (sess && sess.routineId) || schedFor(d.getDay());
   const r = routine(rid);
@@ -1102,23 +1187,34 @@ function renderDayScreen(root, dateKey){
     return;
   }
 
+  // Plan for the day: what to load, and how many lifts are due a jump.
+  const todo = r.exercises.filter(ex => {
+    const e = sess && sess.entries.find(x => (ex.id && x.exerciseId === ex.id) || x.exerciseName === ex.name);
+    return !(e && e.sets.length);
+  });
+  const targets = todo.map(ex => targetFor(ex, dateKey)).filter(Boolean);
+  const ups = targets.filter(t => t.increase).length;
+  const plannedVolume = targets.reduce((t,x) => t + x.weight * x.reps.reduce((a,b)=>a+b,0), 0);
+
   root.append(el('div', { class:'stats' },
-    el('div', { class:'stat' }, el('span',{class:'micro'},'Sets'), el('div',{class:'v num'}, String(sets))),
-    el('div', { class:'stat' }, el('span',{class:'micro'},'Volume'),
-      el('div',{class:'v num'}, nice(sess ? volume(sess) : 0), el('span',{class:'u'}, unit()))),
-    el('div', { class:'stat' }, el('span',{class:'micro'},'Time'),
-      el('div',{class:'v num'}, sets ? dur(sessionElapsed(sess)) : '—'))
+    el('div', { class:'stat' }, el('span',{class:'micro'}, sets ? 'Sets done' : 'Sets to do'),
+      el('div',{class:'v num'}, sets ? String(sets) : String(targets.reduce((t,x)=>t+x.reps.length,0)))),
+    el('div', { class:'stat' }, el('span',{class:'micro'}, sets ? 'Volume' : 'Target volume'),
+      el('div',{class:'v num'}, nice(sets ? volume(sess) : plannedVolume), el('span',{class:'u'}, unit()))),
+    el('div', { class:'stat' }, el('span',{class:'micro'},'Going up'),
+      el('div',{class:'v num', style: ups ? 'color:var(--amp)' : ''}, String(ups)))
   ));
 
-  const list = el('div', { class:'exs' });
-  r.exercises.forEach(ex => list.append(exerciseRow(ex, sess, dateKey, isFuture)));
-  root.append(list);
-
-  if(isFuture){
+  if(targets.length){
     root.append(el('div', { class:'note' },
-      'Coming up. The numbers are the last time you did each one.'));
-    return;
+      ups ? el('b', {}, ups + (ups===1 ? ' lift is' : ' lifts are') + ' due a weight increase today. ')
+          : el('b', {}, 'No weight jumps due — chase reps today. '),
+      'Targets come from your own numbers: hit the top of your rep range on every set and the weight goes up by your usual step for that exercise.'));
   }
+
+  const list = el('div', { class:'exs' });
+  r.exercises.forEach(ex => list.append(exerciseRow(ex, sess, dateKey)));
+  root.append(list);
 
   root.append(el('button', { class:'btn ghost', style:'margin-top:10px',
     onclick:()=>addAdhoc(dateKey, rid) }, '+  Add an exercise'));
@@ -1134,10 +1230,11 @@ function renderDayScreen(root, dateKey){
   }
 }
 
-function exerciseRow(ex, s, dateKey, locked){
+function exerciseRow(ex, s, dateKey){
   const e = s ? s.entries.find(x => (ex.id && x.exerciseId === ex.id) || x.exerciseName === ex.name) : null;
   const done = !!(e && e.sets.length);
   const last = lastTime(ex, dateKey);
+  const target = done ? null : targetFor(ex, dateKey);
 
   const lines = [];
   if(done){
@@ -1150,11 +1247,16 @@ function exerciseRow(ex, s, dateKey, locked){
   } else if(!done){
     lines.push(el('div', { class:'ex-line' }, el('span',{class:'tag'},'LAST'), 'no history yet'));
   }
+  if(target){
+    lines.push(el('div', { class:'ex-line goal' },
+      el('span',{class:'tag'},'TARGET'),
+      el('b', {}, nice(target.weight) + unit() + ' × ' + target.reps.join(', ')),
+      target.increase ? el('span',{class:'up'}, ' ↑') : null));
+  }
 
   return el('button', {
-    class:'ex' + (done ? ' done' : '') + (locked ? ' locked' : ''),
-    disabled: locked ? 'disabled' : null,
-    onclick: locked ? null : ()=>openLog(ex, dateKey)
+    class:'ex' + (done ? ' done' : ''),
+    onclick: ()=>openLog(ex, dateKey)
   },
     el('span', { class:'ex-mark' }),
     el('span', { class:'ex-body' }, el('span', { class:'ex-name' }, ex.name), lines),
@@ -1389,6 +1491,25 @@ function openLog(ex, date){
   const b3 = numBox('Set 3', 'reps', r0[2], 1, 0, 99, 'numeric', () => repaint());
 
   const refBox = el('div');
+
+  // Target first — it is the number he is actually here to beat.
+  const target = targetFor(ex, date);
+  if(target){
+    refBox.append(el('div', { class:'ref goal' },
+      el('div', {},
+        el('b', {}, 'Target  '),
+        nice(target.weight) + unit() + ' × ' + target.reps.join(', '),
+        target.increase ? el('span',{class:'up'}, '  ↑ up ' + nice(target.weight - Math.max(...last.entry.sets.map(s=>s.weight||0))) + unit()) : null),
+      el('div', { class:'why' }, target.reason),
+      el('button', { class:'btn sm', style:'margin-top:9px', onclick:()=>{
+        weightBox.input.value = String(target.weight);
+        [b1,b2,b3].forEach((b,i) => b.input.value = String(target.reps[i] || 0));
+        [weightBox,b1,b2,b3].forEach(b => b.box.classList.toggle('off', !(+b.input.value)));
+        repaint(); haptic(14);
+      }}, 'Use target')
+    ));
+  }
+
   if(last){
     const d = parseDate(last.session.date);
     refBox.append(el('div', { class:'ref' },
@@ -1917,6 +2038,13 @@ function renderLiftDetail(root, name){
     el('button', { class: histMetric==='e1rm'?'on':'', onclick:()=>{ histMetric='e1rm'; renderExercises(); } }, 'Est. 1RM')
   ));
 
+  if(histMetric === 'e1rm') root.append(el('div', { class:'note' },
+    el('b', {}, 'Estimated 1RM'), ' is the heaviest single rep your set suggests you could do, ',
+    'worked out with the Epley formula: ', el('code',{},'weight × (1 + reps ÷ 30)'), '. ',
+    'So 40kg × 10 estimates about 53kg for one. It is an estimate, not something to attempt — ',
+    'its use is that it makes different sets comparable: 40×10 and 45×8 look similar until you ',
+    'see 53kg against 57kg. If it climbs while your top weight sits still, you are still getting stronger.'));
+
   const data = series(histExercise, histMetric);
   const reps = seriesReps(histExercise);
   const card = el('div', { class:'card', style:'margin-top:12px;padding:16px 12px 10px' },
@@ -1943,6 +2071,13 @@ function renderLiftDetail(root, name){
           (delta>0?'+':'') + nice(delta), el('span',{class:'u'}, unit())))
     ));
   }
+
+  const nextUp = targetFor({ id:null, name:histExercise }, '2099-01-01');
+  if(nextUp) root.append(el('div', { class:'ref goal', style:'margin-top:14px' },
+    el('div', {}, el('b', {}, 'Next session  '),
+      nice(nextUp.weight) + unit() + ' × ' + nextUp.reps.join(', '),
+      nextUp.increase ? el('span',{class:'up'}, '  ↑') : null),
+    el('div', { class:'why' }, nextUp.reason)));
 
   const rows = [...S.sessions]
     .filter(s => s.entries.some(e => e.exerciseName === histExercise && e.sets.length))
