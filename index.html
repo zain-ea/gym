@@ -1,0 +1,2133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Gym</title>
+<meta name="theme-color" content="#0F1216">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gym">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+/* ==========================================================================
+   PALETTE — chalk on iron, under a worklight.
+   Six values. A cold charcoal ground rather than pure black (black loses its
+   edges and shows every fingerprint under gym fluorescents), chalk white for
+   numerals so they hold up at arm's length mid-set, and exactly one signal
+   colour — safety amber, the colour gyms and warehouses already use for
+   "mind this" — reserved for whatever is happening NOW. Cool blue appears
+   only to mean rest, so work vs rest is readable with the sound off.
+   ========================================================================== */
+:root{
+  --pit:#0F1216;      /* ground            */
+  --rack:#171B21;     /* raised surfaces   */
+  --chalk:#EEF1F5;    /* primary text      */
+  --steel:#8B95A3;    /* secondary text    */
+  --amp:#FF9F1C;      /* active / work     */
+  --cool:#38BDF8;     /* rest              */
+
+  --hair:rgba(255,255,255,.07);
+  --hair2:rgba(255,255,255,.12);
+  --sink:rgba(0,0,0,.35);
+
+  --sat:env(safe-area-inset-top);
+  --sab:env(safe-area-inset-bottom);
+  --sal:env(safe-area-inset-left);
+  --sar:env(safe-area-inset-right);
+
+  --pad:16px;
+  --tabh:56px;
+  --barh:52px;
+  --r:14px;
+
+  --sys:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+html{background:var(--pit);-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sys);
+  font-size:15px;
+  line-height:1.4;
+  color:var(--chalk);
+  background:var(--pit);
+  overscroll-behavior:none;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit;background:none;border:0;outline:none}
+button{cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+input,textarea{user-select:text;-webkit-user-select:text}
+ul{list-style:none}
+:focus-visible{outline:2px solid var(--amp);outline-offset:2px;border-radius:6px}
+
+/* ---- TYPE ---- */
+.micro{font-size:11px;font-weight:650;letter-spacing:.09em;text-transform:uppercase;color:var(--steel)}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;letter-spacing:-.01em}
+.n-sm{font-size:19px;font-weight:700}
+.n-md{font-size:28px;font-weight:750;letter-spacing:-.02em}
+.n-lg{font-size:40px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.title{font-size:32px;font-weight:800;letter-spacing:-.03em;line-height:1.02}
+.sub{color:var(--steel);font-size:14px}
+.dim{color:var(--steel)}
+.amp{color:var(--amp)}
+.cool{color:var(--cool)}
+
+/* ---- APP FRAME ---- */
+#app{min-height:100%;display:flex;flex-direction:column}
+
+.topbar{
+  position:fixed;top:0;left:0;right:0;z-index:40;
+  padding:var(--sat) calc(var(--pad) + var(--sar)) 0 calc(var(--pad) + var(--sal));
+  background:rgba(15,18,22,.82);
+  backdrop-filter:saturate(140%) blur(14px);
+  -webkit-backdrop-filter:saturate(140%) blur(14px);
+  border-bottom:1px solid var(--hair);
+}
+.rest{
+  height:var(--barh);display:flex;align-items:center;gap:10px;width:100%;
+  text-align:left;
+}
+.rest-dot{width:9px;height:9px;border-radius:50%;background:var(--steel);flex:none;transition:background .2s}
+.rest.on .rest-dot{background:var(--cool);box-shadow:0 0 0 4px rgba(56,189,248,.16)}
+.rest-time{font-size:22px;font-weight:750;min-width:76px}
+.rest.on .rest-time{color:var(--cool)}
+.rest-label{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.rest-presets{display:flex;gap:6px;flex:none}
+.preset{
+  padding:7px 11px;border-radius:9px;background:var(--rack);border:1px solid var(--hair);
+  font-size:12px;font-weight:650;color:var(--steel);font-variant-numeric:tabular-nums;
+}
+.preset:active{background:#1E242C}
+
+main{
+  flex:1;
+  padding:calc(var(--sat) + var(--barh) + 8px) calc(var(--pad) + var(--sar))
+          calc(var(--sab) + var(--tabh) + 28px) calc(var(--pad) + var(--sal));
+}
+.screen{display:none;animation:fade .18s ease}
+.screen.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.tabs{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  display:grid;grid-template-columns:repeat(4,1fr);
+  padding:0 var(--sar) var(--sab) var(--sal);
+  background:rgba(15,18,22,.86);
+  backdrop-filter:saturate(140%) blur(14px);
+  -webkit-backdrop-filter:saturate(140%) blur(14px);
+  border-top:1px solid var(--hair);
+}
+.tab{
+  height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:var(--steel);font-size:10px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;
+}
+.tab svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.tab.on{color:var(--chalk)}
+.tab.on svg{color:var(--amp)}
+
+/* ---- BLOCKS ---- */
+.card{background:var(--rack);border:1px solid var(--hair);border-radius:var(--r);padding:14px}
+.card + .card{margin-top:10px}
+.sec{margin-top:26px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px}
+
+.stats{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;margin-top:14px}
+.stat{padding:11px 12px;background:var(--rack);border:1px solid var(--hair)}
+.stat:first-child{border-radius:var(--r) 0 0 var(--r)}
+.stat:last-child{border-radius:0 var(--r) var(--r) 0}
+.stat:only-child{border-radius:var(--r)}
+.stat .micro{display:block;margin-bottom:5px}
+.stat .v{font-size:21px;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat .u{font-size:12px;font-weight:600;color:var(--steel);margin-left:2px}
+
+.seg{display:flex;gap:2px;background:var(--rack);border:1px solid var(--hair);border-radius:11px;padding:3px}
+.seg button{
+  flex:1;padding:8px 6px;border-radius:8px;font-size:13px;font-weight:650;color:var(--steel);
+  white-space:nowrap;
+}
+.seg button.on{background:#252C36;color:var(--chalk)}
+
+.chip{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;
+  background:var(--rack);border:1px solid var(--hair);font-size:12px;font-weight:600;color:var(--steel);
+}
+.chip.on{background:rgba(255,159,28,.14);border-color:rgba(255,159,28,.4);color:var(--amp)}
+
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  min-height:52px;padding:14px;border-radius:12px;
+  background:var(--rack);border:1px solid var(--hair2);
+  font-size:15px;font-weight:650;
+}
+.btn:active{transform:scale(.985)}
+.btn.primary{background:var(--amp);border-color:var(--amp);color:#140D02;font-weight:750}
+.btn.huge{min-height:64px;font-size:17px;font-weight:800;letter-spacing:.02em}
+.btn.ghost{background:none;color:var(--steel)}
+.btn.danger{color:#FF6B6B;border-color:rgba(255,107,107,.28)}
+.btn.sm{min-height:40px;padding:9px 14px;width:auto;font-size:13px;border-radius:10px}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.row-btns{display:flex;gap:8px}
+.row-btns .btn{flex:1}
+
+.field{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid var(--hair)}
+.field:last-child{border-bottom:0}
+.field label{flex:1;min-width:0}
+.field .hint{display:block;font-size:12px;color:var(--steel);margin-top:2px}
+.inp{
+  background:#0D1014;border:1px solid var(--hair2);border-radius:10px;padding:11px 12px;
+  font-size:16px;width:100%;
+}
+.inp.tight{width:auto;min-width:96px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* ---- TODAY ---- */
+.today-head{padding-top:4px}
+.exs{margin-top:18px;display:flex;flex-direction:column;gap:2px}
+.ex{
+  display:flex;align-items:stretch;gap:12px;width:100%;text-align:left;
+  background:var(--rack);border:1px solid var(--hair);padding:13px 14px;
+}
+.ex:first-child{border-radius:var(--r) var(--r) 0 0}
+.ex:last-child{border-radius:0 0 var(--r) var(--r)}
+.ex:only-child{border-radius:var(--r)}
+.ex:active{background:#1C222A}
+.ex-mark{width:3px;border-radius:2px;background:var(--hair2);flex:none;transition:background .2s}
+.ex.done .ex-mark{background:var(--amp)}
+.ex-body{flex:1;min-width:0}
+.ex-name{font-size:16px;font-weight:650;letter-spacing:-.01em}
+.ex.done .ex-name{color:var(--chalk)}
+.ex-line{margin-top:5px;font-size:13px;font-variant-numeric:tabular-nums;color:var(--steel);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ex-line b{font-weight:650;color:var(--chalk)}
+.ex-line .tag{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--steel);margin-right:6px}
+.ex-line.today .tag{color:var(--amp)}
+.ex-count{
+  flex:none;align-self:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
+  color:var(--steel);min-width:26px;text-align:right;
+}
+.ex.done .ex-count{color:var(--amp)}
+
+.rest-day{text-align:center;padding:30px 16px}
+.rest-day .big{font-size:26px;font-weight:800;letter-spacing:-.02em}
+
+/* ---- LOG SHEET ---- */
+.scrim{
+  position:fixed;inset:0;z-index:60;background:rgba(4,6,8,.62);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  animation:fade .16s ease;
+}
+.sheet{
+  position:fixed;left:0;right:0;bottom:var(--kb,0px);z-index:61;
+  max-height:calc(100dvh - var(--sat) - 24px);
+  display:flex;flex-direction:column;
+  background:#12161B;border:1px solid var(--hair2);border-bottom:0;
+  border-radius:20px 20px 0 0;
+  padding-bottom:calc(var(--sab) + 10px);
+  animation:up .22s cubic-bezier(.2,.9,.3,1);
+  box-shadow:0 -20px 60px rgba(0,0,0,.5);
+}
+.sheet.kb{padding-bottom:10px}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.grip{width:38px;height:4px;border-radius:2px;background:var(--hair2);margin:9px auto 2px;flex:none}
+.sheet-head{
+  display:flex;align-items:center;gap:12px;padding:10px calc(var(--pad) + var(--sar)) 12px calc(var(--pad) + var(--sal));
+  border-bottom:1px solid var(--hair);flex:none;
+}
+.sheet-head h2{flex:1;min-width:0;font-size:19px;font-weight:750;letter-spacing:-.02em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.x{width:36px;height:36px;border-radius:50%;background:var(--rack);display:grid;place-items:center;flex:none;
+  font-size:19px;color:var(--steel);line-height:1}
+.sheet-body{overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:14px calc(var(--pad) + var(--sar)) 4px calc(var(--pad) + var(--sal))}
+.sheet-foot{flex:none;padding:12px calc(var(--pad) + var(--sar)) 0 calc(var(--pad) + var(--sal))}
+
+.dials{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dial{background:var(--rack);border:1px solid var(--hair);border-radius:var(--r);padding:12px 10px;text-align:center}
+.dial .micro{display:block;margin-bottom:8px}
+.dial-row{display:flex;align-items:center;gap:6px}
+.step{
+  width:46px;height:46px;flex:none;border-radius:11px;background:#0D1014;border:1px solid var(--hair2);
+  font-size:22px;font-weight:600;color:var(--chalk);display:grid;place-items:center;line-height:1;
+}
+.step:active{background:var(--amp);color:#140D02;border-color:var(--amp)}
+.dial input{
+  flex:1;min-width:0;text-align:center;font-size:32px;font-weight:800;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;background:none;border:0;padding:0;
+}
+.dial .u{font-size:11px;font-weight:650;color:var(--steel);letter-spacing:.08em;text-transform:uppercase;
+  display:block;margin-top:6px}
+
+.setlist{margin-top:14px;display:flex;flex-direction:column;gap:2px}
+.setrow{
+  display:flex;align-items:center;gap:12px;padding:11px 12px;background:var(--rack);
+  border:1px solid var(--hair);font-variant-numeric:tabular-nums;
+}
+.setrow:first-child{border-radius:11px 11px 0 0}
+.setrow:last-child{border-radius:0 0 11px 11px}
+.setrow:only-child{border-radius:11px}
+.setrow .i{width:22px;font-size:12px;font-weight:700;color:var(--steel)}
+.setrow .v{flex:1;font-size:17px;font-weight:650}
+.setrow .e1{font-size:12px;color:var(--steel)}
+.setrow .del{width:34px;height:34px;border-radius:50%;color:var(--steel);font-size:17px;flex:none;
+  display:grid;place-items:center}
+.setrow .del:active{background:rgba(255,107,107,.16);color:#FF6B6B}
+.setrow.pr .v{color:var(--amp)}
+
+.ref{
+  margin-top:12px;padding:11px 12px;border-radius:11px;background:rgba(255,255,255,.035);
+  border:1px solid var(--hair);font-size:13px;font-variant-numeric:tabular-nums;color:var(--steel);
+}
+.ref b{color:var(--chalk);font-weight:650}
+
+.sugg{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+
+/* ---- TIMERS ---- */
+.clock{
+  text-align:center;padding:20px 0 10px;
+  border-radius:20px;transition:background .3s ease;
+}
+.clock .phase{font-size:13px;font-weight:750;letter-spacing:.18em;text-transform:uppercase;color:var(--steel)}
+.clock .big{
+  font-size:clamp(78px,27vw,150px);font-weight:800;letter-spacing:-.045em;line-height:.94;
+  font-variant-numeric:tabular-nums;margin:6px 0 2px;
+}
+.clock .round{font-size:14px;font-weight:650;color:var(--steel);font-variant-numeric:tabular-nums}
+.clock.work{background:rgba(255,159,28,.1)}
+.clock.work .phase,.clock.work .big{color:var(--amp)}
+.clock.rest{background:rgba(56,189,248,.1)}
+.clock.rest .phase,.clock.rest .big{color:var(--cool)}
+.clock.prep .big{color:var(--chalk)}
+.clock.done .big{color:var(--chalk)}
+.track{display:flex;gap:3px;margin:16px 0 0}
+.track i{flex:1;height:5px;border-radius:3px;background:var(--hair2)}
+.track i.done{background:var(--steel)}
+.track i.now{background:var(--amp)}
+
+.warn{
+  margin-top:14px;padding:11px 12px;border-radius:11px;
+  background:rgba(255,159,28,.08);border:1px solid rgba(255,159,28,.22);
+  font-size:12.5px;color:#E7C892;line-height:1.45;
+}
+.note{
+  margin-top:10px;padding:11px 12px;border-radius:11px;background:rgba(255,255,255,.035);
+  border:1px solid var(--hair);font-size:12.5px;color:var(--steel);line-height:1.5;
+}
+.note b{color:var(--chalk);font-weight:650}
+.note code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+  background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px;color:var(--chalk);
+  word-break:break-all}
+.steps{counter-reset:s;margin-top:10px}
+.steps li{
+  counter-increment:s;position:relative;padding:0 0 11px 30px;font-size:13px;color:var(--steel);line-height:1.5;
+}
+.steps li::before{
+  content:counter(s);position:absolute;left:0;top:1px;width:20px;height:20px;border-radius:50%;
+  background:var(--rack);border:1px solid var(--hair2);color:var(--chalk);
+  font-size:11px;font-weight:700;display:grid;place-items:center;
+}
+.steps li b{color:var(--chalk);font-weight:650}
+
+/* ---- SCHEDULE ---- */
+.days{display:flex;flex-direction:column;gap:2px}
+.day{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px;
+  background:var(--rack);border:1px solid var(--hair);
+}
+.day:first-child{border-radius:var(--r) var(--r) 0 0}
+.day:last-child{border-radius:0 0 var(--r) var(--r)}
+.day:active{background:#1C222A}
+.day .d{width:42px;font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--steel)}
+.day.today .d{color:var(--amp)}
+.day .r{flex:1;font-size:15px;font-weight:650}
+.day.off .r{color:var(--steel);font-weight:500}
+.day .tick{width:8px;height:8px;border-radius:50%;background:var(--hair2)}
+.day:not(.off) .tick{background:var(--amp)}
+
+/* ---- HISTORY / CHARTS ---- */
+.chart{width:100%;display:block;overflow:visible}
+.chart .grid{stroke:var(--hair);stroke-width:1}
+.chart .line{fill:none;stroke:var(--amp);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.chart .area{fill:url(#g);stroke:none}
+.chart .dot{fill:var(--pit);stroke:var(--amp);stroke-width:2}
+.chart .dot.last{fill:var(--amp)}
+.chart .lbl{fill:var(--steel);font-size:10px;font-weight:600;font-family:var(--sys);
+  font-variant-numeric:tabular-nums}
+.chart .val{fill:var(--chalk);font-size:11px;font-weight:750;font-family:var(--sys);
+  font-variant-numeric:tabular-nums}
+
+.empty{text-align:center;padding:34px 16px;color:var(--steel);font-size:14px;line-height:1.5}
+.empty .big{display:block;font-size:17px;font-weight:700;color:var(--chalk);margin-bottom:6px}
+
+.sess{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px;
+  background:var(--rack);border:1px solid var(--hair);
+}
+.sess:first-child{border-radius:var(--r) var(--r) 0 0}
+.sess:last-child{border-radius:0 0 var(--r) var(--r)}
+.sess:only-child{border-radius:var(--r)}
+.sess:active{background:#1C222A}
+.sess .dt{width:52px;flex:none}
+.sess .dt .dd{font-size:19px;font-weight:750;font-variant-numeric:tabular-nums;line-height:1}
+.sess .dt .mm{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--steel);margin-top:2px}
+.sess .mid{flex:1;min-width:0}
+.sess .nm{font-size:15px;font-weight:650}
+.sess .meta{font-size:12px;color:var(--steel);font-variant-numeric:tabular-nums;margin-top:2px}
+.hrb{display:inline-flex;align-items:center;gap:4px;color:#FF6B6B;font-weight:650}
+
+.streak{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:12px}
+.streak i{aspect-ratio:1;border-radius:4px;background:var(--rack);border:1px solid var(--hair)}
+.streak i.a{background:rgba(255,159,28,.85);border-color:transparent}
+.streak i.b{background:rgba(255,159,28,.4);border-color:transparent}
+.streak i.fut{opacity:.35}
+.streak-key{display:flex;gap:14px;margin-top:9px;font-size:11px;color:var(--steel)}
+.streak-key span{display:flex;align-items:center;gap:5px}
+.streak-key b{width:9px;height:9px;border-radius:3px;display:block}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.tile{border-radius:var(--r);padding:12px;border:1px solid var(--hair);background:var(--rack)}
+.tile .micro{display:block;margin-bottom:6px}
+.tile .v{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tile .v .u{font-size:12px;font-weight:650;color:var(--steel);margin-left:3px;letter-spacing:0}
+.tile.hr{background:rgba(255,107,107,.1);border-color:rgba(255,107,107,.24)}
+.tile.hr .v{color:#FF8A8A}
+
+.zones{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.zone{display:flex;align-items:center;gap:9px;font-size:12px;font-variant-numeric:tabular-nums}
+.zone .zn{width:20px;font-weight:700;color:var(--steel)}
+.zone .zbar{flex:1;height:8px;border-radius:4px;background:var(--rack);overflow:hidden}
+.zone .zbar i{display:block;height:100%;border-radius:4px}
+.zone .zv{width:42px;text-align:right;color:var(--steel)}
+
+.spark{width:100%;height:52px;display:block;margin-top:10px}
+.spark path{fill:none;stroke:#FF6B6B;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.spark .fill{fill:rgba(255,107,107,.14);stroke:none}
+
+/* ---- MISC ---- */
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--sab) + var(--tabh) + 16px);z-index:80;
+  background:#242B34;border:1px solid var(--hair2);border-radius:12px;
+  padding:11px 16px;font-size:13.5px;font-weight:600;max-width:calc(100vw - 32px);
+  box-shadow:0 10px 30px rgba(0,0,0,.5);animation:up .2s ease;text-align:center;
+}
+.banner{
+  display:flex;align-items:center;gap:11px;padding:12px 13px;border-radius:12px;margin-bottom:14px;
+  background:rgba(255,159,28,.1);border:1px solid rgba(255,159,28,.26);font-size:13px;line-height:1.45;
+}
+.banner.bad{background:rgba(255,107,107,.1);border-color:rgba(255,107,107,.26)}
+.banner .t{flex:1}
+.reorder{display:flex;gap:4px;flex:none}
+.reorder button{width:34px;height:34px;border-radius:9px;background:#0D1014;border:1px solid var(--hair);
+  color:var(--steel);font-size:13px;display:grid;place-items:center}
+.reorder button:active{color:var(--chalk)}
+.editrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--hair)}
+.editrow .inp{flex:1}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <button class="rest" id="restBar" aria-label="Quick rest timer">
+      <span class="rest-dot"></span>
+      <span class="rest-time num" id="restTime">3:00</span>
+      <span class="rest-label micro" id="restLabel">Rest — tap to start</span>
+      <span class="rest-presets" id="restPresets">
+        <span class="preset" data-s="60">60s</span>
+        <span class="preset" data-s="90">90s</span>
+        <span class="preset" data-s="180">3m</span>
+      </span>
+    </button>
+  </div>
+
+  <main>
+    <section class="screen on" id="s-today"></section>
+    <section class="screen" id="s-history"></section>
+    <section class="screen" id="s-timer"></section>
+    <section class="screen" id="s-settings"></section>
+  </main>
+
+  <nav class="tabs">
+    <button class="tab on" data-go="today">
+      <svg viewBox="0 0 24 24"><rect x="2.5" y="9" width="3" height="6" rx="1.2"/><rect x="6.5" y="6.5" width="3.2" height="11" rx="1.4"/><rect x="14.3" y="6.5" width="3.2" height="11" rx="1.4"/><rect x="18.5" y="9" width="3" height="6" rx="1.2"/><path d="M9.7 12h4.6"/></svg>
+      Today
+    </button>
+    <button class="tab" data-go="history">
+      <svg viewBox="0 0 24 24"><path d="M3 20V4"/><path d="M3 20h18"/><path d="m6.5 15.5 4-4.5 3.5 3 5.5-6.5"/></svg>
+      History
+    </button>
+    <button class="tab" data-go="timer">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 10v3.5l2.3 1.6"/><path d="M9.5 2.5h5"/></svg>
+      Timer
+    </button>
+    <button class="tab" data-go="settings">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9.5" cy="7" r="2.6"/><circle cx="15" cy="17" r="2.6"/></svg>
+      Settings
+    </button>
+  </nav>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   GYM — a single-file training log.
+   Sections: STATE · STORAGE · UTIL · AUDIO · WAKE LOCK · REST TIMER ·
+             TODAY · LOGGING · SCHEDULE · ROUTINES · BOXING · HISTORY ·
+             CHARTS · HEALTH · BACKUP · SETTINGS · SHEETS · BOOT
+   ========================================================================== */
+
+/* ---- STATE ---- */
+
+const KEY = 'gym.v1';
+const REST_KEY = 'gym.rest';
+
+const DEFAULTS = () => ({
+  version: 1,
+  routines: [
+    { id:'a', name:'Pull', subtitle:'Back · Biceps · Triceps', exercises:[
+      'Lat pulldown','Barbell row','Seated cable row','Face pull',
+      'Barbell curl','Hammer curl','Tricep pushdown','Overhead tricep extension'
+    ].map((n,i)=>({ id:'a'+(i+1), name:n })) },
+    { id:'b', name:'Push / Legs', subtitle:'Chest · Shoulders · Legs', exercises:[
+      'Bench press','Incline dumbbell press','Cable fly','Shoulder press',
+      'Lateral raise','Squat','Leg press','Romanian deadlift'
+    ].map((n,i)=>({ id:'b'+(i+1), name:n })) }
+  ],
+  schedule: { 0:null, 1:'a', 2:null, 3:'b', 4:null, 5:'a', 6:'b' },
+  sessions: [],
+  settings: {
+    unit:'kg',
+    reminderTime:'07:00',
+    maxHr:190,
+    boxing:{ workSec:180, restSec:60, rounds:6 },
+    quickRestSec:180,
+    backupAt:0
+  }
+});
+
+let S = null;
+let loadFailed = false;
+
+/* ---- STORAGE ---- */
+
+function load(){
+  let raw = null;
+  try { raw = localStorage.getItem(KEY); }
+  catch(e){ loadFailed = true; return DEFAULTS(); }
+  if(!raw) return DEFAULTS();
+  try { return migrate(JSON.parse(raw)); }
+  catch(e){
+    console.error('gym: store unreadable', e);
+    loadFailed = true;
+    try { localStorage.setItem(KEY + '.broken.' + Date.now(), raw); } catch(_){}
+    return DEFAULTS();
+  }
+}
+
+// Tolerant of anything missing — a half-written store must still boot.
+function migrate(p){
+  const d = DEFAULTS();
+  if(!p || typeof p !== 'object') return d;
+  const out = {
+    version: 1,
+    routines: Array.isArray(p.routines) && p.routines.length ? p.routines : d.routines,
+    schedule: (p.schedule && typeof p.schedule === 'object') ? p.schedule : d.schedule,
+    sessions: Array.isArray(p.sessions) ? p.sessions : [],
+    settings: Object.assign({}, d.settings, p.settings || {})
+  };
+  out.settings.boxing = Object.assign({}, d.settings.boxing, (p.settings||{}).boxing || {});
+  out.routines = out.routines.map((r,i)=>({
+    id: r.id || 'r' + i,
+    name: r.name || 'Routine',
+    subtitle: r.subtitle || '',
+    exercises: (Array.isArray(r.exercises) ? r.exercises : []).map((e,j)=>({
+      id: e.id || 'e' + i + j, name: e.name || 'Exercise'
+    }))
+  }));
+  out.sessions = out.sessions.filter(s => s && s.date).map(s => ({
+    id: s.id || 's_' + s.date,
+    date: s.date,
+    routineId: s.routineId ?? null,
+    startedAt: s.startedAt || null,
+    endedAt: s.endedAt || null,
+    finished: !!s.finished,
+    hr: s.hr || null,
+    entries: (Array.isArray(s.entries) ? s.entries : []).map(e => ({
+      exerciseId: e.exerciseId || null,
+      exerciseName: e.exerciseName || 'Exercise',
+      sets: (Array.isArray(e.sets) ? e.sets : []).map(x => ({
+        weight: Number(x.weight) || 0, reps: Number(x.reps) || 0
+      }))
+    }))
+  }));
+  return out;
+}
+
+let saveTimer = null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); }
+    catch(e){ toast('Could not save — storage may be full'); console.error(e); }
+  }, 60);
+}
+
+/* ---- UTIL ---- */
+
+const $  = (sel, r=document) => r.querySelector(sel);
+const $$ = (sel, r=document) => Array.from(r.querySelectorAll(sel));
+
+function el(tag, attrs, ...kids){
+  const n = document.createElement(tag);
+  for(const k in (attrs||{})){
+    const v = attrs[k];
+    if(v === null || v === undefined || v === false) continue;
+    if(k === 'class') n.className = v;
+    else if(k === 'html') n.innerHTML = v;
+    else if(k === 'text') n.textContent = v;
+    else if(k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v);
+  }
+  for(const kid of kids.flat()){
+    if(kid === null || kid === undefined || kid === false) continue;
+    n.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return n;
+}
+
+const pad2 = n => String(n).padStart(2,'0');
+const DAYS  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DAY3  = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const MON3  = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+function localDate(d = new Date()){
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+function parseDate(k){
+  const [y,m,d] = k.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function clock(sec){
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec/60), s = sec%60;
+  return m + ':' + pad2(s);
+}
+function dur(ms){
+  if(!ms || ms < 0) return '—';
+  const m = Math.round(ms/60000);
+  return m < 60 ? m + 'm' : Math.floor(m/60) + 'h ' + pad2(m%60) + 'm';
+}
+function nice(n){
+  if(!isFinite(n)) return '0';
+  return (Math.round(n*10)/10).toLocaleString('en-AU');
+}
+const unit = () => S.settings.unit;
+const e1rm = s => (s.weight||0) * (1 + (s.reps||0)/30);   // Epley
+
+function toast(msg, ms=2200){
+  $$('.toast').forEach(t=>t.remove());
+  const t = el('div', { class:'toast', text:msg });
+  document.body.append(t);
+  setTimeout(()=>t.remove(), ms);
+}
+
+function haptic(ms=18){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
+
+/* ---- AUDIO ----
+   Generated tones only, no files, so it still works offline. The context has to
+   be created (and resumed) inside a user gesture or iOS keeps it suspended. */
+
+let actx = null;
+function audio(){
+  if(!actx){
+    const C = window.AudioContext || window.webkitAudioContext;
+    if(!C) return null;
+    actx = new C();
+  }
+  if(actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function tone(freq, len=0.16, when=0, vol=0.28, type='sine'){
+  const a = audio(); if(!a) return;
+  const t0 = a.currentTime + when;
+  const osc = a.createOscillator(), g = a.createGain();
+  osc.type = type; osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+  osc.connect(g).connect(a.destination);
+  osc.start(t0); osc.stop(t0 + len + 0.02);
+}
+const cue = {
+  work(){ tone(880,.16,0,.3,'square'); tone(1180,.2,.13,.3,'square'); },
+  rest(){ tone(420,.34,0,.26,'sine'); },
+  tick(){ tone(680,.09,0,.22,'square'); },
+  done(){ tone(880,.18,0,.3); tone(660,.18,.17,.3); tone(440,.42,.34,.3); },
+  ping(){ tone(1046,.14,0,.3); tone(1568,.26,.12,.28); }
+};
+document.addEventListener('pointerdown', () => audio(), { once:true });
+
+/* ---- WAKE LOCK ---- */
+
+let wake = null;
+async function wakeOn(){
+  try { if('wakeLock' in navigator && !wake) wake = await navigator.wakeLock.request('screen'); }
+  catch(e){ /* denied or unsupported — the on-screen warning covers it */ }
+}
+async function wakeOff(){
+  try { await (wake && wake.release()); } catch(e){}
+  wake = null;
+}
+const needsWake = () => box.running || rest.endsAt !== null;
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible'){
+    if(needsWake()){ wake = null; wakeOn(); }
+    paintRest(); paintBox();
+  }
+});
+
+/* ---- REST TIMER ----
+   Driven off an absolute end timestamp, never a decrementing counter, so it
+   survives backgrounding and reloads without drifting. */
+
+let rest = { endsAt:null, total:0 };
+
+function restLoad(){
+  try {
+    const r = JSON.parse(localStorage.getItem(REST_KEY) || 'null');
+    if(r && r.endsAt && r.endsAt > Date.now()) rest = r;
+  } catch(e){}
+}
+function restSave(){
+  try {
+    if(rest.endsAt) localStorage.setItem(REST_KEY, JSON.stringify(rest));
+    else localStorage.removeItem(REST_KEY);
+  } catch(e){}
+}
+function restStart(sec){
+  sec = sec || S.settings.quickRestSec || 180;
+  rest = { endsAt: Date.now() + sec*1000, total: sec };
+  restSave(); wakeOn(); paintRest(); haptic();
+}
+function restStop(){
+  rest = { endsAt:null, total:0 };
+  restSave(); if(!needsWake()) wakeOff(); paintRest();
+}
+let restFired = false;
+function paintRest(){
+  const bar = $('#restBar'), t = $('#restTime'), l = $('#restLabel');
+  if(!rest.endsAt){
+    bar.classList.remove('on');
+    t.textContent = clock(S.settings.quickRestSec || 180);
+    l.textContent = 'Rest — tap to start';
+    restFired = false;
+    return;
+  }
+  const left = (rest.endsAt - Date.now())/1000;
+  if(left <= 0){
+    if(!restFired){ restFired = true; cue.ping(); haptic([60,40,60]); toast('Rest done'); }
+    restStop();
+    return;
+  }
+  bar.classList.add('on');
+  t.textContent = clock(left);
+  l.textContent = 'Tap to reset';
+  if(left <= 3.02 && left > 2.98) cue.tick();
+}
+$('#restBar').addEventListener('click', e => {
+  const p = e.target.closest('.preset');
+  if(p){ e.stopPropagation(); restStart(+p.dataset.s); return; }
+  rest.endsAt ? restStop() : restStart();
+});
+
+/* ---- SESSIONS ---- */
+
+function routine(id){ return S.routines.find(r => r.id === id) || null; }
+
+// schedule keys survive a JSON round trip as strings; obj[1] and obj['1'] are
+// the same property, so read through one place and stop worrying about it.
+function schedFor(dayIndex){ return S.schedule[dayIndex] ?? null; }
+function trainingDays(){ return [0,1,2,3,4,5,6].filter(d => schedFor(d)); }
+function sessionOn(date){ return S.sessions.find(s => s.date === date) || null; }
+
+function ensureSession(date, routineId){
+  let s = sessionOn(date);
+  if(!s){
+    s = { id:'s_'+Date.now(), date, routineId: routineId ?? null,
+          startedAt:null, endedAt:null, finished:false, hr:null, entries:[] };
+    S.sessions.push(s);
+  }
+  if(routineId !== undefined && routineId !== null && !s.routineId) s.routineId = routineId;
+  return s;
+}
+function entryFor(s, ex){
+  let e = s.entries.find(x => (ex.id && x.exerciseId === ex.id) || x.exerciseName === ex.name);
+  if(!e){ e = { exerciseId: ex.id || null, exerciseName: ex.name, sets:[] }; s.entries.push(e); }
+  return e;
+}
+function volume(s){
+  return s.entries.reduce((t,e) => t + e.sets.reduce((u,x)=>u + (x.weight||0)*(x.reps||0), 0), 0);
+}
+function setCount(s){ return s.entries.reduce((t,e)=>t + e.sets.length, 0); }
+
+// `endedAt` is stamped on every set, so an unfinished session still has an
+// honest duration. While it is live the clock runs; a session left open is
+// treated as finished after two hours of nothing, so forgetting to tap Finish
+// can never show "7h" the next morning.
+const STALE = 2*3600*1000;
+function sessionFinished(s){
+  return !!(s && (s.finished || (s.endedAt && Date.now() - s.endedAt > STALE)));
+}
+function sessionElapsed(s){
+  if(!s || !s.startedAt) return 0;
+  return sessionFinished(s) ? (s.endedAt || s.startedAt) - s.startedAt : Date.now() - s.startedAt;
+}
+
+// Most recent session before `before` that has real sets for this exercise.
+function lastTime(ex, before){
+  const list = S.sessions
+    .filter(s => s.date < before)
+    .sort((a,b) => b.date.localeCompare(a.date));
+  for(const s of list){
+    const e = s.entries.find(x => (ex.id && x.exerciseId === ex.id) || x.exerciseName === ex.name);
+    if(e && e.sets.length) return { session:s, entry:e };
+  }
+  return null;
+}
+function allExerciseNames(){
+  const set = new Set();
+  S.routines.forEach(r => r.exercises.forEach(e => set.add(e.name)));
+  S.sessions.forEach(s => s.entries.forEach(e => e.sets.length && set.add(e.exerciseName)));
+  return Array.from(set).sort((a,b)=>a.localeCompare(b));
+}
+function bestEver(name, excludeSessionId){
+  let best = 0;
+  for(const s of S.sessions){
+    if(s.id === excludeSessionId) continue;
+    const e = s.entries.find(x => x.exerciseName === name);
+    if(e) for(const x of e.sets) best = Math.max(best, x.weight||0);
+  }
+  return best;
+}
+function setsLine(sets){
+  return sets.map(x => nice(x.weight) + '×' + x.reps).join(' · ');
+}
+
+/* ---- TODAY ---- */
+
+function renderToday(){
+  const root = $('#s-today');
+  root.innerHTML = '';
+  const now = new Date(), today = localDate(now);
+  const dow = now.getDay();
+  const schedId = schedFor(dow);
+  const sess = sessionOn(today);
+  const rid = (sess && sess.routineId) || schedId;
+  const r = routine(rid);
+
+  root.append(bannerStack());
+
+  root.append(el('div', { class:'today-head' },
+    el('div', { class:'micro' }, DAYS[dow].toUpperCase() + ' · ' + now.getDate() + ' ' + MON3[now.getMonth()]),
+    el('h1', { class:'title', style:'margin-top:6px' }, r ? r.name : 'Rest day'),
+    r && r.subtitle ? el('div', { class:'sub', style:'margin-top:4px' }, r.subtitle) : null
+  ));
+
+  if(!r){
+    root.append(el('div', { class:'card rest-day', style:'margin-top:18px' },
+      el('div', { class:'big' }, 'Nothing scheduled'),
+      el('div', { class:'sub', style:'margin-top:6px;margin-bottom:16px' }, 'Recover. Or train anyway:'),
+      el('div', { class:'row-btns' }, S.routines.map(x =>
+        el('button', { class:'btn sm', style:'flex:1',
+          onclick:()=>{ ensureSession(today, x.id); save(); renderToday(); } }, x.name)
+      ))
+    ));
+    root.append(scheduleShortcut());
+    return;
+  }
+
+  const s = sess;
+  const sets = s ? setCount(s) : 0;
+  const vol  = s ? volume(s) : 0;
+  const elapsed = sessionElapsed(s);
+
+  root.append(el('div', { class:'stats' },
+    el('div', { class:'stat' }, el('span',{class:'micro'},'Sets'),
+      el('div',{class:'v num'}, String(sets))),
+    el('div', { class:'stat' }, el('span',{class:'micro'},'Volume'),
+      el('div',{class:'v num'}, nice(vol), el('span',{class:'u'}, unit()))),
+    el('div', { class:'stat' }, el('span',{class:'micro'},'Time'),
+      el('div',{class:'v num'}, sets ? dur(elapsed) : '—'))
+  ));
+
+  const list = el('div', { class:'exs' });
+  r.exercises.forEach(ex => list.append(exerciseRow(ex, s, today)));
+  root.append(list);
+
+  root.append(el('button', {
+    class:'btn ghost', style:'margin-top:10px',
+    onclick:()=>addAdhoc(today, rid)
+  }, '+  Add an exercise'));
+
+  if(sets){
+    root.append(el('div', { class:'sec' },
+      el('button', { class:'btn', onclick:()=>finishSession(today) },
+        s.finished ? 'Session finished · reopen' : 'Finish session')
+    ));
+    if(s.hr) root.append(hrPanel(s));
+    else root.append(el('button', {
+      class:'btn ghost', style:'margin-top:10px', onclick:()=>openHealth(today)
+    }, '♥  Import heart rate'));
+  }
+
+  root.append(scheduleShortcut());
+}
+
+function exerciseRow(ex, s, today){
+  const e = s ? s.entries.find(x => (ex.id && x.exerciseId === ex.id) || x.exerciseName === ex.name) : null;
+  const done = !!(e && e.sets.length);
+  const last = lastTime(ex, today);
+
+  const lines = [];
+  if(done){
+    lines.push(el('div', { class:'ex-line today' },
+      el('span',{class:'tag'},'TODAY'), el('b', {}, setsLine(e.sets))));
+  }
+  if(last){
+    lines.push(el('div', { class:'ex-line' },
+      el('span',{class:'tag'},'LAST'), setsLine(last.entry.sets)));
+  } else if(!done){
+    lines.push(el('div', { class:'ex-line' }, el('span',{class:'tag'},'LAST'), 'no history yet'));
+  }
+
+  return el('button', { class:'ex' + (done ? ' done' : ''), onclick:()=>openLog(ex, today) },
+    el('span', { class:'ex-mark' }),
+    el('span', { class:'ex-body' }, el('span', { class:'ex-name' }, ex.name), lines),
+    el('span', { class:'ex-count' }, done ? String(e.sets.length) : '')
+  );
+}
+
+function scheduleShortcut(){
+  const days = trainingDays().length;
+  return el('div', { class:'sec' },
+    el('button', { class:'btn ghost', onclick:()=>openSchedule() },
+      'Schedule · ' + days + ' day' + (days===1?'':'s') + ' a week')
+  );
+}
+
+function finishSession(date){
+  const s = sessionOn(date); if(!s) return;
+  if(s.finished){ s.finished = false; toast('Session reopened'); }
+  else {
+    s.finished = true;
+    s.endedAt = Date.now();
+    if(!s.startedAt) s.startedAt = s.endedAt;
+    cue.ping(); haptic(40);
+    toast('Logged ' + setCount(s) + ' sets · ' + nice(volume(s)) + unit());
+    maybeBackupNag();
+  }
+  save(); renderToday();
+}
+
+function addAdhoc(date, rid){
+  const names = allExerciseNames();
+  let picked = '';
+  const input = el('input', { class:'inp', placeholder:'Exercise name', autocapitalize:'words',
+    autocorrect:'off', spellcheck:'false' });
+  const suggBox = el('div', { class:'sugg' });
+
+  const paint = () => {
+    const q = input.value.trim().toLowerCase();
+    const hits = (q ? names.filter(n => n.toLowerCase().includes(q)) : names).slice(0, 8);
+    suggBox.innerHTML = '';
+    hits.forEach(n => suggBox.append(el('button', { class:'chip', onclick:()=>{
+      input.value = n; picked = n; paint();
+    } }, n)));
+  };
+  input.addEventListener('input', paint);
+  paint();
+
+  openSheet({
+    title:'Add an exercise',
+    body:[ input, suggBox,
+      el('div',{class:'note'}, 'Added to today only. To change the routine itself, use Settings → Routines.') ],
+    action:{ label:'Add', primary:true, run(){
+      const name = (input.value || picked).trim();
+      if(!name){ toast('Give it a name'); return false; }
+      const s = ensureSession(date, rid);
+      entryFor(s, { id:null, name });
+      save(); closeSheet(); renderToday();
+      openLog({ id:null, name }, date);
+      return true;
+    }}
+  });
+}
+
+/* ---- LOGGING ----
+   The whole app lives or dies here. Opening prefilled with the previous set
+   means a repeat set costs two taps: the row, then ADD SET. */
+
+function openLog(ex, date){
+  const s = ensureSession(date, (sessionOn(date)||{}).routineId ?? currentRoutineId());
+  const e = entryFor(s, ex);
+  const last = lastTime(ex, date);
+  const pr = bestEver(ex.name, s.id);
+
+  let w = 0, reps = 0;
+  if(e.sets.length){ const p = e.sets[e.sets.length-1]; w = p.weight; reps = p.reps; }
+  else if(last){ const p = last.entry.sets[last.entry.sets.length-1]; w = p.weight; reps = p.reps; }
+
+  const wIn = el('input', { class:'num', inputmode:'decimal', enterkeyhint:'done',
+    value: w ? String(w) : '', placeholder:'0' });
+  const rIn = el('input', { class:'num', inputmode:'numeric', enterkeyhint:'done',
+    value: reps ? String(reps) : '', placeholder:'0' });
+  [wIn, rIn].forEach(i => i.addEventListener('focus', () => i.select()));
+
+  const bump = (input, delta, min=0) => {
+    const v = Math.max(min, Math.round(((+input.value||0) + delta)*100)/100);
+    input.value = String(v); haptic(10);
+  };
+
+  const dials = el('div', { class:'dials' },
+    el('div', { class:'dial' },
+      el('span',{class:'micro'},'Weight'),
+      el('div',{class:'dial-row'},
+        el('button',{class:'step','aria-label':'less weight',onclick:()=>bump(wIn,-2.5)},'−'),
+        wIn,
+        el('button',{class:'step','aria-label':'more weight',onclick:()=>bump(wIn,2.5)},'+')),
+      el('span',{class:'u'}, unit())),
+    el('div', { class:'dial' },
+      el('span',{class:'micro'},'Reps'),
+      el('div',{class:'dial-row'},
+        el('button',{class:'step','aria-label':'fewer reps',onclick:()=>bump(rIn,-1)},'−'),
+        rIn,
+        el('button',{class:'step','aria-label':'more reps',onclick:()=>bump(rIn,1)},'+')),
+      el('span',{class:'u'},'reps'))
+  );
+
+  const refBox = el('div');
+  const setsBox = el('div');
+
+  const paintRef = () => {
+    refBox.innerHTML = '';
+    if(last){
+      const d = parseDate(last.session.date);
+      refBox.append(el('div', { class:'ref' },
+        el('b', {}, 'Last · ' + DAY3[d.getDay()] + ' ' + d.getDate() + ' ' + MON3[d.getMonth()] + '  '),
+        setsLine(last.entry.sets)));
+    }
+    if(pr) refBox.append(el('div', { class:'ref' }, el('b',{},'Best ever  '), nice(pr) + unit()));
+  };
+
+  const paintSets = () => {
+    setsBox.innerHTML = '';
+    if(!e.sets.length){ setsBox.append(el('div',{class:'note'},'No sets yet. Numbers above are prefilled from last time — hit ADD SET.')); return; }
+    const list = el('div', { class:'setlist' });
+    e.sets.forEach((x, i) => {
+      const isPr = pr > 0 && x.weight > pr;
+      list.append(el('div', { class:'setrow' + (isPr ? ' pr' : '') },
+        el('span',{class:'i'}, String(i+1)),
+        el('span',{class:'v num'}, nice(x.weight) + unit() + ' × ' + x.reps),
+        el('span',{class:'e1 num'}, 'e1RM ' + nice(e1rm(x))),
+        el('button',{class:'del','aria-label':'delete set',onclick:()=>{
+          e.sets.splice(i,1); touchSession(s); save(); paintSets(); renderToday();
+        }},'×')
+      ));
+    });
+    setsBox.append(list);
+  };
+
+  const add = () => {
+    const weight = +wIn.value || 0, r = Math.round(+rIn.value || 0);
+    if(r <= 0){ toast('Reps?'); rIn.focus(); return; }
+    e.sets.push({ weight, reps:r });
+    touchSession(s); save();
+    haptic(22); cue.tick();
+    paintSets(); renderToday();
+    if(S.settings.quickRestSec > 0) restStart(S.settings.quickRestSec);
+    setsBox.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  };
+
+  [wIn, rIn].forEach(i => i.addEventListener('keydown', ev => {
+    if(ev.key === 'Enter'){ ev.preventDefault(); i.blur(); add(); }
+  }));
+
+  paintRef(); paintSets();
+
+  openSheet({
+    title: ex.name,
+    body: [ dials, refBox, setsBox ],
+    footer: el('button', { class:'btn primary huge', onclick:add }, 'ADD SET')
+  });
+}
+
+function touchSession(s){
+  const now = Date.now();
+  if(!s.startedAt) s.startedAt = now;
+  s.endedAt = now;
+}
+function currentRoutineId(){ return schedFor(new Date().getDay()); }
+
+/* ---- SCHEDULE ---- */
+
+function openSchedule(){
+  const body = el('div');
+  const paint = () => {
+    body.innerHTML = '';
+    const today = new Date().getDay();
+    const days = el('div', { class:'days' });
+    for(let i=0;i<7;i++){
+      const r = routine(schedFor(i));
+      days.append(el('button', {
+        class:'day' + (r ? '' : ' off') + (i === today ? ' today' : ''),
+        onclick:()=>{ cycleDay(i); paint(); renderToday(); haptic(); }
+      },
+        el('span',{class:'d'}, DAY3[i]),
+        el('span',{class:'r'}, r ? r.name : 'Rest'),
+        el('span',{class:'tick'})
+      ));
+    }
+    const n = trainingDays().length;
+    body.append(days);
+    body.append(el('div',{class:'note'},
+      el('b',{}, n + ' training day' + (n===1?'':'s') + ' a week. '),
+      'Tap a day to cycle it: ' + S.routines.map(r=>r.name).join(' → ') + ' → Rest.'));
+    paint.count = n;
+  };
+  paint();
+  openSheet({ title:'Weekly schedule', body:[body] });
+}
+
+function cycleDay(i){
+  const order = S.routines.map(r => r.id).concat([null]);
+  const idx = order.indexOf(schedFor(i));
+  S.schedule[i] = order[(idx + 1) % order.length];
+  save();
+}
+
+/* ---- ROUTINES ---- */
+
+function openRoutines(){
+  const body = el('div');
+  const paint = () => {
+    body.innerHTML = '';
+    S.routines.forEach((r, ri) => {
+      const card = el('div', { class:'card', style: ri ? 'margin-top:12px' : '' });
+      const nameIn = el('input', { class:'inp', value:r.name });
+      nameIn.addEventListener('change', ()=>{ r.name = nameIn.value.trim() || 'Routine'; save(); renderToday(); });
+      const subIn = el('input', { class:'inp', value:r.subtitle||'', placeholder:'Muscle groups' });
+      subIn.addEventListener('change', ()=>{ r.subtitle = subIn.value.trim(); save(); renderToday(); });
+      card.append(el('span',{class:'micro'},'Routine name'), nameIn,
+        el('span',{class:'micro',style:'display:block;margin-top:10px'},'Subtitle'), subIn,
+        el('span',{class:'micro',style:'display:block;margin-top:14px'},'Exercises'));
+
+      r.exercises.forEach((ex, i) => {
+        const inp = el('input', { class:'inp', value:ex.name });
+        inp.addEventListener('change', ()=>{ ex.name = inp.value.trim() || 'Exercise'; save(); renderToday(); });
+        card.append(el('div', { class:'editrow' }, inp,
+          el('div',{class:'reorder'},
+            el('button',{ 'aria-label':'move up', disabled:i===0, onclick:()=>{
+              r.exercises.splice(i-1,0,r.exercises.splice(i,1)[0]); save(); paint(); renderToday(); }},'▲'),
+            el('button',{ 'aria-label':'move down', disabled:i===r.exercises.length-1, onclick:()=>{
+              r.exercises.splice(i+1,0,r.exercises.splice(i,1)[0]); save(); paint(); renderToday(); }},'▼'),
+            el('button',{ 'aria-label':'delete', onclick:()=>{
+              confirmSheet('Remove "'+ex.name+'"?', 'Sets already logged against it are kept in your history.', ()=>{
+                r.exercises.splice(i,1); save(); paint(); renderToday(); }); }},'×')
+          )));
+      });
+
+      card.append(el('button', { class:'btn sm', style:'margin-top:12px', onclick:()=>{
+        r.exercises.push({ id:'e'+Date.now().toString(36), name:'New exercise' });
+        save(); paint(); renderToday();
+      }}, '+ Add exercise'));
+      body.append(card);
+    });
+  };
+  paint();
+  openSheet({ title:'Routines', body:[body] });
+}
+
+/* ---- BOXING TIMER ----
+   Everything is derived from one start timestamp. setInterval only repaints;
+   it never owns the count, so drift over a 30-minute session is impossible. */
+
+let box = { running:false, startedAt:0, pausedAt:0, lost:0, lastKey:'', lastSec:-1 };
+const PREP = 5;
+
+function boxCfg(){ return S.settings.boxing; }
+function boxTotal(c){ return PREP + c.rounds*c.workSec + (c.rounds-1)*c.restSec; }
+
+function boxState(){
+  const c = boxCfg();
+  if(!box.running) return { phase:'idle', round:0, remain:c.workSec, total:boxTotal(c), elapsed:0 };
+  const now = box.pausedAt || Date.now();
+  const elapsed = (now - box.startedAt - box.lost)/1000;
+  if(elapsed < PREP) return { phase:'prep', round:0, remain:PREP-elapsed, elapsed, total:boxTotal(c) };
+  const t = elapsed - PREP;
+  const cycle = c.workSec + c.restSec;
+  const span = c.rounds*cycle - c.restSec;
+  if(t >= span) return { phase:'done', round:c.rounds, remain:0, elapsed, total:boxTotal(c) };
+  const round = Math.floor(t/cycle) + 1;
+  const into = t % cycle;
+  return into < c.workSec
+    ? { phase:'work', round, remain:c.workSec-into, elapsed, total:boxTotal(c) }
+    : { phase:'rest', round, remain:cycle-into, elapsed, total:boxTotal(c) };
+}
+
+function boxStart(){
+  box = { running:true, startedAt:Date.now(), pausedAt:0, lost:0, lastKey:'', lastSec:-1 };
+  audio(); wakeOn(); paintBox();
+}
+function boxPause(){
+  if(!box.running || box.pausedAt) return;
+  box.pausedAt = Date.now(); wakeOff(); paintBox();
+}
+function boxResume(){
+  if(!box.pausedAt) return;
+  box.lost += Date.now() - box.pausedAt;
+  box.pausedAt = 0; wakeOn(); paintBox();
+}
+function boxStop(){
+  box.running = false; box.pausedAt = 0;
+  if(!needsWake()) wakeOff();
+  paintBox();
+}
+
+function paintBox(){
+  const root = $('#s-timer');
+  if(!root.classList.contains('on') && !box.running) return;
+  const c = boxCfg(), st = boxState();
+
+  // Audio cues fire on transition, detected by comparing against the last paint.
+  if(box.running && !box.pausedAt){
+    const key = st.phase + st.round;
+    if(key !== box.lastKey){
+      if(box.lastKey){
+        if(st.phase === 'work') cue.work();
+        else if(st.phase === 'rest') cue.rest();
+        else if(st.phase === 'done'){ cue.done(); haptic([80,60,80,60,120]); }
+      }
+      box.lastKey = key;
+      box.lastSec = -1;
+    }
+    const secs = Math.ceil(st.remain);
+    if(secs !== box.lastSec){
+      if(secs <= 3 && secs >= 1 && (st.phase === 'work' || st.phase === 'rest' || st.phase === 'prep')) cue.tick();
+      box.lastSec = secs;
+    }
+    if(st.phase === 'done'){ box.running = false; if(!needsWake()) wakeOff(); }
+  }
+
+  const clockEl = $('#boxClock');
+  if(!clockEl) return;
+  clockEl.className = 'clock ' + st.phase;
+  $('#boxPhase').textContent =
+    st.phase === 'idle' ? 'Ready' :
+    st.phase === 'prep' ? 'Get ready' :
+    st.phase === 'work' ? 'Work' :
+    st.phase === 'rest' ? 'Rest' : 'Complete';
+  $('#boxBig').textContent = st.phase === 'done' ? '✓' : clock(st.remain);
+  $('#boxRound').textContent = st.phase === 'idle' || st.phase === 'prep'
+    ? c.rounds + ' × ' + clock(c.workSec) + ' work / ' + clock(c.restSec) + ' rest'
+    : 'Round ' + Math.max(1, st.round) + ' of ' + c.rounds;
+
+  const track = $('#boxTrack');
+  track.innerHTML = '';
+  for(let i=1;i<=c.rounds;i++){
+    const cls = st.phase === 'done' || i < st.round ? 'done' : (i === st.round && st.phase !== 'idle' && st.phase !== 'prep' ? 'now' : '');
+    track.append(el('i', { class:cls }));
+  }
+
+  const run = $('#boxRun'), pause = $('#boxPause');
+  if(!box.running){ run.textContent = st.phase === 'done' ? 'Go again' : 'Start'; run.classList.add('primary'); pause.style.display = 'none'; }
+  else { run.textContent = 'Stop'; run.classList.remove('primary'); pause.style.display = ''; pause.textContent = box.pausedAt ? 'Resume' : 'Pause'; }
+}
+
+function renderTimer(){
+  const root = $('#s-timer');
+  const c = boxCfg();
+  root.innerHTML = '';
+  root.append(el('h1', { class:'title' }, 'Rounds'));
+  root.append(el('div', { class:'sub', style:'margin-top:4px' }, 'Boxing / interval timer'));
+
+  root.append(el('div', { class:'clock', id:'boxClock', style:'margin-top:16px' },
+    el('div', { class:'phase', id:'boxPhase' }, 'Ready'),
+    el('div', { class:'big num', id:'boxBig' }, clock(c.workSec)),
+    el('div', { class:'round', id:'boxRound' }, '')
+  ));
+  root.append(el('div', { class:'track', id:'boxTrack' }));
+
+  root.append(el('div', { class:'row-btns', style:'margin-top:16px' },
+    el('button', { class:'btn primary huge', id:'boxRun', onclick:()=>{
+      box.running ? boxStop() : boxStart();
+    }}, 'Start'),
+    el('button', { class:'btn huge', id:'boxPause', style:'display:none', onclick:()=>{
+      box.pausedAt ? boxResume() : boxPause();
+    }}, 'Pause')
+  ));
+
+  const numField = (label, key, min, max, step, fmt) => {
+    const inp = el('input', { class:'inp tight num', inputmode:'numeric', value:String(c[key]) });
+    inp.addEventListener('change', ()=>{
+      const v = Math.min(max, Math.max(min, Math.round(+inp.value || min)));
+      c[key] = v; inp.value = String(v); save(); paintBox();
+    });
+    return el('div', { class:'field' },
+      el('label', {}, label, fmt ? el('span',{class:'hint'}, fmt) : null), inp);
+  };
+
+  root.append(el('div', { class:'sec' },
+    el('div', { class:'sec-head' }, el('span',{class:'micro'},'Setup')),
+    el('div', { class:'card' },
+      numField('Work', 'workSec', 5, 3600, 1, 'seconds per round'),
+      numField('Rest', 'restSec', 0, 3600, 1, 'seconds between rounds'),
+      numField('Rounds', 'rounds', 1, 99, 1, null)
+    )
+  ));
+
+  root.append(el('div', { class:'warn' },
+    'Keep this screen in front. The app asks iOS to hold the screen awake while the timer runs, but if you lock the phone or switch apps iOS suspends the timer. It self-corrects from the clock when you come back, so the round count stays honest.'
+  ));
+
+  root.append(el('div', { class:'sec' },
+    el('div', { class:'sec-head' }, el('span',{class:'micro'},'Quick rest default')),
+    el('div', { class:'card' },
+      el('div', { class:'row-btns' }, [60,90,180,240].map(sec =>
+        el('button', {
+          class:'btn sm' + (S.settings.quickRestSec === sec ? ' primary' : ''),
+          style:'flex:1',
+          onclick:()=>{ S.settings.quickRestSec = sec; save(); renderTimer(); paintRest(); }
+        }, sec < 120 ? sec+'s' : (sec/60)+'m'))),
+      el('div', { class:'note' }, 'Used by the bar at the top of every screen, and started automatically each time you log a set.')
+    )
+  ));
+  paintBox();
+}
+
+/* ---- HISTORY ---- */
+
+let histTab = 'sessions';
+let histExercise = null;
+let histMetric = 'top';
+
+function renderHistory(){
+  const root = $('#s-history');
+  root.innerHTML = '';
+  root.append(el('h1', { class:'title' }, 'History'));
+
+  root.append(el('div', { class:'seg', style:'margin-top:14px' },
+    el('button', { class: histTab==='sessions' ? 'on' : '', onclick:()=>{ histTab='sessions'; renderHistory(); } }, 'Sessions'),
+    el('button', { class: histTab==='exercise' ? 'on' : '', onclick:()=>{ histTab='exercise'; renderHistory(); } }, 'Per exercise')
+  ));
+
+  histTab === 'sessions' ? histSessions(root) : histExerciseView(root);
+}
+
+function histSessions(root){
+  const list = [...S.sessions].filter(s => setCount(s) > 0).sort((a,b)=>b.date.localeCompare(a.date));
+
+  root.append(el('div', { class:'sec' },
+    el('div', { class:'sec-head' }, el('span',{class:'micro'},'Last 8 weeks')),
+    streakGrid()
+  ));
+
+  if(!list.length){
+    root.append(el('div',{class:'empty'},
+      el('span',{class:'big'},'No sessions yet'),
+      'Log a set on the Today tab and it will show up here.'));
+    return;
+  }
+
+  const wrap = el('div', { class:'sec' },
+    el('div', { class:'sec-head' },
+      el('span',{class:'micro'}, list.length + ' session' + (list.length===1?'':'s')),
+      el('span',{class:'micro'}, nice(list.reduce((t,s)=>t+volume(s),0)) + ' ' + unit() + ' total')));
+  const box2 = el('div');
+  list.slice(0, 200).forEach(s => {
+    const d = parseDate(s.date), r = routine(s.routineId);
+    box2.append(el('button', { class:'sess', onclick:()=>openSession(s.id) },
+      el('span',{class:'dt'},
+        el('div',{class:'dd num'}, String(d.getDate())),
+        el('div',{class:'mm'}, MON3[d.getMonth()])),
+      el('span',{class:'mid'},
+        el('div',{class:'nm'}, r ? r.name : 'Session'),
+        el('div',{class:'meta'},
+          setCount(s) + (setCount(s)===1 ? ' set · ' : ' sets · ') + nice(volume(s)) + unit() +
+          (s.startedAt && s.endedAt ? ' · ' + dur(s.endedAt - s.startedAt) : ''),
+          s.hr ? el('span',{class:'hrb'}, '  ♥ ' + s.hr.avg) : null)),
+      el('span',{class:'ex-count'}, '›')
+    ));
+  });
+  wrap.append(box2);
+  root.append(wrap);
+}
+
+function streakGrid(){
+  const wrap = el('div');
+  const grid = el('div', { class:'streak' });
+  const trained = new Map();
+  S.sessions.forEach(s => { if(setCount(s) > 0) trained.set(s.date, s.routineId); });
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  // Start 8 weeks back, aligned to Sunday, so columns are weekdays.
+  const start = new Date(today);
+  start.setDate(start.getDate() - 55 - today.getDay());
+  for(let i=0;i<56+7;i++){
+    const d = new Date(start); d.setDate(start.getDate()+i);
+    if(d > today){ grid.append(el('i',{class:'fut'})); continue; }
+    const rid = trained.get(localDate(d));
+    grid.append(el('i', { class: rid == null ? '' : (rid === S.routines[0]?.id ? 'a' : 'b'),
+      title: localDate(d) }));
+  }
+  wrap.append(grid);
+  wrap.append(el('div', { class:'streak-key' },
+    el('span', {}, el('b',{style:'background:rgba(255,159,28,.85)'}), S.routines[0]?.name || 'A'),
+    el('span', {}, el('b',{style:'background:rgba(255,159,28,.4)'}), S.routines[1]?.name || 'B'),
+    el('span', {}, el('b',{style:'background:var(--rack);border:1px solid var(--hair)'}), 'Rest')
+  ));
+  return wrap;
+}
+
+function histExerciseView(root){
+  const names = allExerciseNames();
+  if(!names.length){
+    root.append(el('div',{class:'empty'},
+      el('span',{class:'big'},'Nothing to plot yet'),
+      'Charts appear once an exercise has been logged.'));
+    return;
+  }
+  if(!histExercise || !names.includes(histExercise)) histExercise = names[0];
+
+  const sel = el('select', { class:'inp', style:'margin-top:14px;-webkit-appearance:none' });
+  names.forEach(n => sel.append(el('option', { value:n, selected: n===histExercise ? 'selected' : null }, n)));
+  sel.addEventListener('change', ()=>{ histExercise = sel.value; renderHistory(); });
+  root.append(sel);
+
+  root.append(el('div', { class:'seg', style:'margin-top:10px' },
+    el('button', { class: histMetric==='top'?'on':'', onclick:()=>{ histMetric='top'; renderHistory(); } }, 'Top set'),
+    el('button', { class: histMetric==='e1rm'?'on':'', onclick:()=>{ histMetric='e1rm'; renderHistory(); } }, 'Est. 1RM')
+  ));
+
+  const data = series(histExercise, histMetric);
+  root.append(el('div', { class:'card', style:'margin-top:12px;padding:16px 12px 10px' },
+    chartFor(data)));
+
+  if(data.length){
+    const first = data[0].value, lastV = data[data.length-1].value;
+    const delta = lastV - first;
+    root.append(el('div', { class:'stats' },
+      el('div',{class:'stat'}, el('span',{class:'micro'},'Latest'),
+        el('div',{class:'v num'}, nice(lastV), el('span',{class:'u'}, unit()))),
+      el('div',{class:'stat'}, el('span',{class:'micro'},'Best'),
+        el('div',{class:'v num'}, nice(Math.max(...data.map(p=>p.value))), el('span',{class:'u'}, unit()))),
+      el('div',{class:'stat'}, el('span',{class:'micro'},'Change'),
+        el('div',{class:'v num', style: delta>0?'color:var(--amp)':''},
+          (delta>0?'+':'') + nice(delta), el('span',{class:'u'}, unit())))
+    ));
+  }
+
+  const rows = [...S.sessions]
+    .filter(s => s.entries.some(e => e.exerciseName === histExercise && e.sets.length))
+    .sort((a,b)=>b.date.localeCompare(a.date));
+  const wrap = el('div', { class:'sec' },
+    el('div', { class:'sec-head' }, el('span',{class:'micro'}, rows.length + ' sessions')));
+  const box2 = el('div');
+  rows.forEach(s => {
+    const d = parseDate(s.date);
+    const e = s.entries.find(x => x.exerciseName === histExercise);
+    box2.append(el('button', { class:'sess', onclick:()=>openSession(s.id) },
+      el('span',{class:'dt'},
+        el('div',{class:'dd num'}, String(d.getDate())),
+        el('div',{class:'mm'}, MON3[d.getMonth()])),
+      el('span',{class:'mid'},
+        el('div',{class:'nm num', style:'font-size:14px'}, setsLine(e.sets)),
+        el('div',{class:'meta'}, DAY3[d.getDay()] + ' · ' + e.sets.length + ' sets'))
+    ));
+  });
+  wrap.append(box2);
+  root.append(wrap);
+}
+
+function series(name, metric){
+  const out = [];
+  [...S.sessions].sort((a,b)=>a.date.localeCompare(b.date)).forEach(s => {
+    const e = s.entries.find(x => x.exerciseName === name);
+    if(!e || !e.sets.length) return;
+    const v = metric === 'top'
+      ? Math.max(...e.sets.map(x => x.weight||0))
+      : Math.max(...e.sets.map(e1rm));
+    out.push({ date:s.date, value:v });
+  });
+  return out;
+}
+
+/* ---- CHARTS ----
+   Hand-rolled SVG. Degenerate cases are the whole game: zero points must invite
+   a first entry, one point must draw the dot and no line. */
+
+function chartFor(data){
+  if(!data.length){
+    return el('div',{class:'empty'},
+      el('span',{class:'big'},'No data yet'),
+      'Log this exercise and the line starts here.');
+  }
+  const W = 320, H = 170, L = 34, R = 10, T = 16, B = 22;
+  const iw = W - L - R, ih = H - T - B;
+
+  let lo = Math.min(...data.map(p=>p.value));
+  let hi = Math.max(...data.map(p=>p.value));
+  if(hi === lo){ hi = lo + Math.max(1, lo*0.05); lo = Math.max(0, lo - Math.max(1, lo*0.05)); }
+  const padY = (hi-lo)*0.12; hi += padY; lo = Math.max(0, lo - padY);
+
+  const x = i => data.length === 1 ? L + iw/2 : L + (i/(data.length-1))*iw;
+  const y = v => T + ih - ((v-lo)/(hi-lo))*ih;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns,'svg');
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('class','chart');
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  const mk = (t, a) => { const n = document.createElementNS(ns,t); for(const k in a) n.setAttribute(k,a[k]); return n; };
+
+  const defs = mk('defs',{});
+  const grad = mk('linearGradient',{ id:'g', x1:'0', y1:'0', x2:'0', y2:'1' });
+  grad.append(mk('stop',{ offset:'0', 'stop-color':'#FF9F1C', 'stop-opacity':'.22' }));
+  grad.append(mk('stop',{ offset:'1', 'stop-color':'#FF9F1C', 'stop-opacity':'0' }));
+  defs.append(grad); svg.append(defs);
+
+  // Two reference lines only — top and bottom. No gridline clutter.
+  [lo, hi].forEach(v => {
+    svg.append(mk('line',{ class:'grid', x1:L, y1:y(v), x2:W-R, y2:y(v) }));
+    const t = mk('text',{ class:'lbl', x:L-6, y:y(v)+3.5, 'text-anchor':'end' });
+    t.textContent = nice(v); svg.append(t);
+  });
+
+  if(data.length > 1){
+    const line = data.map((p,i)=>(i?'L':'M') + x(i).toFixed(1) + ' ' + y(p.value).toFixed(1)).join(' ');
+    svg.append(mk('path',{ class:'area',
+      d: line + ' L ' + x(data.length-1).toFixed(1) + ' ' + (T+ih) + ' L ' + x(0).toFixed(1) + ' ' + (T+ih) + ' Z' }));
+    svg.append(mk('path',{ class:'line', d:line }));
+  }
+
+  // With many points, dots become noise — thin them out.
+  const showDot = data.length <= 24 ? 1 : Math.ceil(data.length/24);
+  data.forEach((p,i) => {
+    const isLast = i === data.length-1;
+    if(!isLast && i % showDot) return;
+    svg.append(mk('circle',{ class:'dot' + (isLast?' last':''), cx:x(i), cy:y(p.value),
+      r: isLast ? 4.5 : (data.length > 30 ? 2 : 3) }));
+  });
+
+  const lastP = data[data.length-1];
+  const vt = mk('text',{ class:'val', x:Math.min(x(data.length-1), W-R-4), y:Math.max(T-3, y(lastP.value)-9),
+    'text-anchor': data.length === 1 ? 'middle' : 'end' });
+  vt.textContent = nice(lastP.value); svg.append(vt);
+
+  const label = (i, anchor) => {
+    const d = parseDate(data[i].date);
+    const t = mk('text',{ class:'lbl', x:x(i), y:H-6, 'text-anchor':anchor });
+    t.textContent = d.getDate() + ' ' + MON3[d.getMonth()];
+    svg.append(t);
+  };
+  if(data.length === 1) label(0,'middle');
+  else { label(0,'start'); label(data.length-1,'end'); }
+
+  return svg;
+}
+
+function sparkline(pts){
+  if(!pts || pts.length < 2) return null;
+  const W = 320, H = 52;
+  const vals = pts.map(p=>p[1]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if(hi === lo){ hi = lo+1; lo = lo-1; }
+  const t0 = pts[0][0], t1 = pts[pts.length-1][0] || 1;
+  const x = t => t1 === t0 ? 0 : (t-t0)/(t1-t0)*W;
+  const y = v => H - 4 - ((v-lo)/(hi-lo))*(H-10);
+  const d = pts.map((p,i)=>(i?'L':'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join(' ');
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns,'svg');
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  svg.setAttribute('class','spark');
+  svg.setAttribute('preserveAspectRatio','none');
+  const f = document.createElementNS(ns,'path');
+  f.setAttribute('class','fill');
+  f.setAttribute('d', d + ' L ' + W + ' ' + H + ' L 0 ' + H + ' Z');
+  const l = document.createElementNS(ns,'path');
+  l.setAttribute('d', d);
+  svg.append(f, l);
+  return svg;
+}
+
+/* ---- SESSION DETAIL ---- */
+
+function openSession(id){
+  const s = S.sessions.find(x => x.id === id); if(!s) return;
+  const d = parseDate(s.date), r = routine(s.routineId);
+  const body = el('div');
+
+  body.append(el('div', { class:'stats', style:'margin-top:0' },
+    el('div',{class:'stat'}, el('span',{class:'micro'},'Sets'), el('div',{class:'v num'}, String(setCount(s)))),
+    el('div',{class:'stat'}, el('span',{class:'micro'},'Volume'),
+      el('div',{class:'v num'}, nice(volume(s)), el('span',{class:'u'}, unit()))),
+    el('div',{class:'stat'}, el('span',{class:'micro'},'Time'),
+      el('div',{class:'v num'}, s.startedAt && s.endedAt ? dur(s.endedAt-s.startedAt) : '—'))
+  ));
+
+  if(s.hr) body.append(hrPanel(s));
+
+  s.entries.filter(e=>e.sets.length).forEach(e => {
+    const c = el('div', { class:'card', style:'margin-top:10px' },
+      el('div',{style:'font-weight:650;font-size:15px'}, e.exerciseName),
+      el('div',{class:'ex-line num',style:'margin-top:6px'}, setsLine(e.sets)),
+      el('div',{class:'micro',style:'margin-top:8px'},
+        'Top ' + nice(Math.max(...e.sets.map(x=>x.weight||0))) + unit() +
+        ' · e1RM ' + nice(Math.max(...e.sets.map(e1rm))))
+    );
+    body.append(c);
+  });
+
+  body.append(el('button', { class:'btn ghost', style:'margin-top:16px', onclick:()=>openHealth(s.date) },
+    s.hr ? '♥  Re-import heart rate' : '♥  Import heart rate'));
+  body.append(el('button', { class:'btn danger', style:'margin-top:8px', onclick:()=>{
+    confirmSheet('Delete this session?', 'Everything logged on ' + s.date + ' goes. Cannot be undone.', ()=>{
+      S.sessions = S.sessions.filter(x => x.id !== id);
+      save(); closeSheet(); renderAll(); toast('Session deleted');
+    });
+  }}, 'Delete session'));
+
+  openSheet({
+    title: (r ? r.name + ' · ' : '') + DAY3[d.getDay()] + ' ' + d.getDate() + ' ' + MON3[d.getMonth()],
+    body:[body]
+  });
+}
+
+/* ---- HEALTH ----
+   Web apps cannot read HealthKit. Nothing can change that. What CAN happen is
+   iOS Shortcuts reading Apple Health and handing the numbers over — either by
+   opening this app with them in the URL hash, or by pasting them in. Since
+   Google Health now writes Fitbit data back into Apple Health, that covers the
+   Fitbit Air too. See the README for the shortcut, step by step. */
+
+const ZONES = [
+  { n:'Z1', lo:0.00, hi:0.60, c:'#8B95A3' },
+  { n:'Z2', lo:0.60, hi:0.70, c:'#38BDF8' },
+  { n:'Z3', lo:0.70, hi:0.80, c:'#5BD9A8' },
+  { n:'Z4', lo:0.80, hi:0.90, c:'#FF9F1C' },
+  { n:'Z5', lo:0.90, hi:9.99, c:'#FF6B6B' }
+];
+
+// Accepts "093105-72,093120-75" (HHMMSS-bpm) or a plain "72,75,80" list,
+// with or without whitespace, brackets or a trailing comma.
+function parseHr(text, dateKey){
+  const base = parseDate(dateKey || localDate()).getTime();
+  const parts = String(text).replace(/[\[\]"']/g,' ').split(/[,\s;]+/).filter(Boolean);
+  const stamped = [], bare = [];
+  for(const p of parts){
+    let m = p.match(/^(\d{2})(\d{2})(\d{2})[-:](\d+(?:\.\d+)?)$/);
+    if(m){
+      const t = base + (+m[1]*3600 + +m[2]*60 + +m[3])*1000;
+      const bpm = Math.round(+m[4]);
+      if(bpm > 20 && bpm < 260) stamped.push([t, bpm]);
+      continue;
+    }
+    m = p.match(/^(\d{1,3})(?:\.\d+)?$/);
+    if(m){ const bpm = Math.round(+m[1]); if(bpm > 20 && bpm < 260) bare.push(bpm); }
+  }
+  if(stamped.length){ stamped.sort((a,b)=>a[0]-b[0]); return { stamped, bare:[] }; }
+  return { stamped:[], bare };
+}
+
+function attachHr(dateKey, text, kcal){
+  const s = sessionOn(dateKey);
+  if(!s){ toast('No session on ' + dateKey); return false; }
+  const { stamped, bare } = parseHr(text, dateKey);
+  let pts = [];
+
+  if(stamped.length){
+    // Trim to the session window when we know it, with 3 minutes of slack.
+    const a = (s.startedAt || stamped[0][0]) - 180000;
+    const b = (s.endedAt || stamped[stamped.length-1][0]) + 180000;
+    const win = stamped.filter(p => p[0] >= a && p[0] <= b);
+    const use = win.length ? win : stamped;
+    const t0 = use[0][0];
+    pts = use.map(p => [Math.round((p[0]-t0)/1000), p[1]]);
+  } else if(bare.length){
+    const span = (s.startedAt && s.endedAt) ? (s.endedAt - s.startedAt)/1000 : bare.length*5;
+    pts = bare.map((v,i) => [Math.round(i/Math.max(1,bare.length-1)*span), v]);
+  } else {
+    toast('No heart rate numbers found in that');
+    return false;
+  }
+
+  // Downsample so a year of sessions stays well inside the localStorage budget.
+  const MAX = 180;
+  if(pts.length > MAX){
+    const step = pts.length / MAX;
+    const thin = [];
+    for(let i=0;i<MAX;i++) thin.push(pts[Math.min(pts.length-1, Math.floor(i*step))]);
+    thin.push(pts[pts.length-1]);
+    pts = thin;
+  }
+
+  const vals = pts.map(p=>p[1]);
+  s.hr = {
+    avg: Math.round(vals.reduce((a,b)=>a+b,0)/vals.length),
+    max: Math.max(...vals),
+    min: Math.min(...vals),
+    kcal: kcal ? Math.round(+kcal) || null : (s.hr && s.hr.kcal) || null,
+    pts
+  };
+  save();
+  return true;
+}
+
+function hrPanel(s){
+  const hr = s.hr, mx = S.settings.maxHr || 190;
+  const wrap = el('div', { class:'sec' },
+    el('div', { class:'sec-head' },
+      el('span',{class:'micro'},'Heart rate'),
+      el('span',{class:'micro'}, hr.pts.length + ' samples')));
+
+  wrap.append(el('div', { class:'tiles' },
+    el('div',{class:'tile hr'}, el('span',{class:'micro'},'Average'),
+      el('div',{class:'v num'}, String(hr.avg), el('span',{class:'u'},'bpm'))),
+    el('div',{class:'tile hr'}, el('span',{class:'micro'},'Peak'),
+      el('div',{class:'v num'}, String(hr.max), el('span',{class:'u'},'bpm'))),
+    hr.kcal ? el('div',{class:'tile'}, el('span',{class:'micro'},'Energy'),
+      el('div',{class:'v num'}, String(hr.kcal), el('span',{class:'u'},'kcal'))) : null,
+    el('div',{class:'tile'}, el('span',{class:'micro'},'Low'),
+      el('div',{class:'v num'}, String(hr.min), el('span',{class:'u'},'bpm')))
+  ));
+
+  const spark = sparkline(hr.pts);
+  if(spark) wrap.append(spark);
+
+  // Time in zone, from consecutive-sample gaps.
+  const secs = ZONES.map(()=>0);
+  for(let i=1;i<hr.pts.length;i++){
+    const gap = Math.max(0, Math.min(120, hr.pts[i][0] - hr.pts[i-1][0]));
+    const pct = hr.pts[i][1] / mx;
+    const zi = ZONES.findIndex(z => pct >= z.lo && pct < z.hi);
+    if(zi >= 0) secs[zi] += gap;
+  }
+  const tot = secs.reduce((a,b)=>a+b,0);
+  if(tot > 0){
+    const z = el('div', { class:'zones' });
+    ZONES.forEach((zone, i) => {
+      const p = secs[i]/tot*100;
+      z.append(el('div', { class:'zone' },
+        el('span',{class:'zn'}, zone.n),
+        el('span',{class:'zbar'}, el('i',{ style:'width:'+p.toFixed(1)+'%;background:'+zone.c })),
+        el('span',{class:'zv'}, secs[i] >= 60 ? Math.round(secs[i]/60)+'m' : Math.round(secs[i])+'s')
+      ));
+    });
+    wrap.append(z);
+    wrap.append(el('div',{class:'micro',style:'margin-top:8px'}, 'Zones from a max of ' + mx + ' bpm — change it in Settings'));
+  }
+  return wrap;
+}
+
+function openHealth(dateKey){
+  const s = sessionOn(dateKey);
+  const ta = el('textarea', { class:'inp', rows:'3', placeholder:'093105-118, 093120-124, …',
+    style:'font-family:ui-monospace,Menlo,monospace;font-size:13px' });
+  const kcal = el('input', { class:'inp', inputmode:'numeric', placeholder:'optional' });
+
+  const win = s && s.startedAt
+    ? new Date(s.startedAt).toTimeString().slice(0,5) + ' – ' +
+      new Date(s.endedAt || Date.now()).toTimeString().slice(0,5)
+    : null;
+
+  openSheet({
+    title:'Heart rate',
+    body:[
+      el('div',{class:'note'},
+        el('b',{},'Where this comes from. '),
+        'iOS will not let a web app read Apple Health directly — no browser can. ',
+        'An iOS Shortcut can, though, and since Google Health started writing Fitbit data back into Apple Health in August 2026, that includes your Fitbit Air. ',
+        'The shortcut opens this app with the numbers attached; nothing is uploaded anywhere.'),
+      win ? el('div',{class:'ref',style:'margin-top:10px'},
+        el('b',{},'This session  '), win + ' on ' + dateKey) : null,
+      el('div',{class:'sec-head',style:'margin-top:18px'}, el('span',{class:'micro'},'Set up the shortcut')),
+      el('ol',{class:'steps'},
+        el('li',{html:'Open <b>Shortcuts</b> → <b>+</b> → name it <b>Gym HR</b>.'}),
+        el('li',{html:'Add <b>Find All Health Samples Where</b>. Set <b>Type</b> to <b>Heart Rate</b>, and add a filter: <b>Start Date</b> is in the last <b>3 hours</b>. Sort by Start Date, ascending.'}),
+        el('li',{html:'Add <b>Repeat with Each</b>. Inside it: <b>Get Details of Health Sample</b> → <b>Value</b>, then <b>Format Date</b> on the sample\'s <b>Start Date</b> with custom format <b>HHmmss</b>, then a <b>Text</b> action reading <b>[Formatted Date]-[Value]</b>.'}),
+        el('li',{html:'After the repeat, add <b>Combine Text</b> with <b>Repeat Results</b>, separator <b>Comma</b>, then <b>URL Encode</b>.'}),
+        el('li',{html:'Finish with <b>Open URLs</b>: <code>' + location.origin + location.pathname + '#hr=</code> followed by the encoded text.'}),
+        el('li',{html:'Run it after training. This app opens, reads the numbers, and files them against today\'s session.'})
+      ),
+      el('div',{class:'sec-head',style:'margin-top:18px'}, el('span',{class:'micro'},'Or paste it in')),
+      ta,
+      el('div',{class:'field',style:'margin-top:4px'},
+        el('label',{}, 'Calories', el('span',{class:'hint'},'kcal, if you have it')), kcal),
+      el('div',{class:'note'},'Accepts <b>HHMMSS-bpm</b> pairs, or just a comma-separated list of bpm values.')
+    ],
+    action:{ label:'Attach to session', primary:true, run(){
+      if(!s){ toast('Log a set first — there is no session to attach to'); return false; }
+      if(attachHr(dateKey, ta.value, kcal.value)){
+        closeSheet(); renderAll(); toast('Heart rate attached'); haptic(30);
+      }
+      return true;
+    }}
+  });
+}
+
+// #hr=…&kcal=… handed over by the shortcut.
+function consumeHashImport(){
+  const h = location.hash || '';
+  if(h.indexOf('hr=') < 0) return;
+  const q = new URLSearchParams(h.replace(/^#/, ''));
+  const raw = q.get('hr'); if(!raw) return;
+  history.replaceState(null, '', location.pathname + location.search);
+
+  // Prefer today; otherwise the most recent session within 18 hours.
+  let key = localDate();
+  if(!sessionOn(key)){
+    const recent = [...S.sessions].sort((a,b)=>b.date.localeCompare(a.date))
+      .find(s => s.endedAt && Date.now() - s.endedAt < 18*3600*1000);
+    if(recent) key = recent.date;
+  }
+  if(!sessionOn(key)){ toast('Heart rate received, but no session to attach it to'); return; }
+  if(attachHr(key, raw, q.get('kcal'))){
+    renderAll(); toast('Heart rate imported'); haptic(30);
+    setTimeout(()=>openSession(sessionOn(key).id), 400);
+  }
+}
+
+/* ---- BACKUP ---- */
+
+function exportPayload(){ return JSON.stringify(S, null, 2); }
+function exportName(){ return 'gym-backup-' + localDate() + '.json'; }
+
+function widgetPayload(){
+  const now = new Date();
+  const dow = now.getDay();
+  const r = routine(schedFor(dow));
+  let next = null;
+  for(let i=1;i<=7;i++){
+    const d = (dow+i)%7;
+    const id = schedFor(d);
+    if(id){ next = { day: DAYS[d], routine: (routine(id)||{}).name || '' }; break; }
+  }
+  const done = [...S.sessions].filter(s=>setCount(s)>0).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  return JSON.stringify({
+    generated: new Date().toISOString(),
+    today: r ? r.name : 'Rest',
+    todaySubtitle: r ? r.subtitle : '',
+    isRestDay: !r,
+    next,
+    last: done ? {
+      date: done.date,
+      routine: (routine(done.routineId)||{}).name || '',
+      sets: setCount(done),
+      volume: Math.round(volume(done)),
+      unit: unit(),
+      avgHr: done.hr ? done.hr.avg : null
+    } : null,
+    weekCount: [...S.sessions].filter(s => setCount(s)>0 &&
+      (Date.now() - parseDate(s.date).getTime()) < 7*864e5).length
+  }, null, 2);
+}
+
+async function shareFile(name, text, mime='application/json'){
+  const file = new File([text], name, { type:mime });
+  // Share sheet first: on iOS this is the only route that reliably reaches
+  // Files / iCloud Drive from a standalone PWA.
+  if(navigator.canShare && navigator.canShare({ files:[file] })){
+    try { await navigator.share({ files:[file], title:name }); return true; }
+    catch(e){ if(e && e.name === 'AbortError') return true; }
+  }
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type:mime }));
+    const a = el('a', { href:url, download:name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    return true;
+  } catch(e){ return false; }
+}
+
+async function doExport(){
+  const ok = await shareFile(exportName(), exportPayload());
+  if(ok){
+    S.settings.backupAt = S.sessions.length; save();
+    toast('Backup created');
+  } else {
+    openSheet({ title:'Copy your backup', body:[
+      el('div',{class:'note'},'Saving the file did not work here. Select all of this and keep it somewhere safe.'),
+      el('textarea',{ class:'inp', rows:'12', style:'margin-top:10px;font-family:ui-monospace,Menlo,monospace;font-size:11px', text: exportPayload() })
+    ]});
+  }
+}
+
+function doImport(){
+  const file = el('input', { type:'file', accept:'application/json,.json', style:'display:none' });
+  file.addEventListener('change', () => {
+    const f = file.files && file.files[0]; if(!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      let parsed;
+      try { parsed = JSON.parse(String(rd.result)); }
+      catch(e){ toast('That file is not valid JSON'); return; }
+      if(!parsed || !Array.isArray(parsed.sessions) || !Array.isArray(parsed.routines)){
+        toast('That does not look like a gym backup'); return;
+      }
+      const n = parsed.sessions.length;
+      confirmSheet('Replace everything?',
+        'This backup holds ' + n + ' session' + (n===1?'':'s') + '. Your current data (' +
+        S.sessions.length + ') will be overwritten.', () => {
+          S = migrate(parsed); save(); closeSheet(); renderAll();
+          toast('Restored ' + n + ' sessions');
+        });
+    };
+    rd.readAsText(f);
+  });
+  document.body.append(file); file.click();
+  setTimeout(()=>file.remove(), 60000);
+}
+
+function maybeBackupNag(){
+  const since = S.sessions.length - (S.settings.backupAt || 0);
+  if(since >= 10) renderToday();
+}
+
+function bannerStack(){
+  const wrap = el('div');
+  if(loadFailed){
+    wrap.append(el('div',{class:'banner bad'},
+      el('span',{class:'t'}, 'Saved data could not be read, so this started fresh. The old copy was kept aside — restore from a backup if you have one.'),
+      el('button',{class:'btn sm',onclick:()=>{ loadFailed=false; renderAll(); }},'OK')));
+  }
+  const since = S.sessions.length - (S.settings.backupAt || 0);
+  if(since >= 10){
+    wrap.append(el('div',{class:'banner'},
+      el('span',{class:'t'}, since + ' sessions since your last backup. iOS can clear this app\'s storage without warning.'),
+      el('button',{class:'btn sm',onclick:doExport},'Back up')));
+  }
+  if(swUpdate){
+    wrap.append(el('div',{class:'banner'},
+      el('span',{class:'t'},'A new version is ready.'),
+      el('button',{class:'btn sm',onclick:()=>location.reload()},'Reload')));
+  }
+  return wrap;
+}
+
+/* ---- SETTINGS ---- */
+
+function renderSettings(){
+  const root = $('#s-settings');
+  root.innerHTML = '';
+  root.append(el('h1',{class:'title'},'Settings'));
+
+  root.append(el('div',{class:'sec'},
+    el('div',{class:'sec-head'}, el('span',{class:'micro'},'Training')),
+    el('div',{class:'card'},
+      el('button',{class:'field',style:'width:100%;text-align:left',onclick:openSchedule},
+        el('label',{},'Weekly schedule', el('span',{class:'hint'},
+          trainingDays().length + ' training days')),
+        el('span',{class:'dim'},'›')),
+      el('button',{class:'field',style:'width:100%;text-align:left',onclick:openRoutines},
+        el('label',{},'Routines & exercises', el('span',{class:'hint'},
+          S.routines.map(r=>r.name + ' (' + r.exercises.length + ')').join(' · '))),
+        el('span',{class:'dim'},'›'))
+    )));
+
+  const unitSeg = el('div',{class:'seg',style:'width:130px;flex:none'},
+    el('button',{ class: unit()==='kg'?'on':'', onclick:()=>{ S.settings.unit='kg'; save(); renderAll(); }},'kg'),
+    el('button',{ class: unit()==='lb'?'on':'', onclick:()=>{ S.settings.unit='lb'; save(); renderAll(); }},'lb'));
+
+  const maxHr = el('input',{ class:'inp tight num', inputmode:'numeric', value:String(S.settings.maxHr) });
+  maxHr.addEventListener('change',()=>{
+    S.settings.maxHr = Math.min(230, Math.max(120, Math.round(+maxHr.value || 190)));
+    maxHr.value = String(S.settings.maxHr); save(); renderAll();
+  });
+
+  root.append(el('div',{class:'sec'},
+    el('div',{class:'sec-head'}, el('span',{class:'micro'},'Units & heart rate')),
+    el('div',{class:'card'},
+      el('div',{class:'field'}, el('label',{},'Weight unit'), unitSeg),
+      el('div',{class:'field'}, el('label',{},'Max heart rate',
+        el('span',{class:'hint'},'used for training zones')), maxHr),
+      el('button',{class:'field',style:'width:100%;text-align:left',onclick:()=>openHealth(localDate())},
+        el('label',{},'Heart rate from Apple Health',
+          el('span',{class:'hint'},'via an iOS Shortcut — Fitbit Air included')),
+        el('span',{class:'dim'},'›'))
+    )));
+
+  const timeIn = el('input',{ class:'inp tight', type:'time', value:S.settings.reminderTime });
+  timeIn.addEventListener('change',()=>{ S.settings.reminderTime = timeIn.value || '07:00'; save(); renderSettings(); });
+
+  root.append(el('div',{class:'sec'},
+    el('div',{class:'sec-head'}, el('span',{class:'micro'},'Morning reminder')),
+    el('div',{class:'card'},
+      el('div',{class:'field'}, el('label',{},'Reminder time',
+        el('span',{class:'hint'},'stored here, fired by Shortcuts')), timeIn),
+      el('div',{class:'note'},
+        el('b',{},'Straight up: this app cannot send you a notification. '),
+        'iOS gives web apps no way to schedule one. What it can do is show today\'s routine the moment you open it. For an actual alarm, build a personal automation — it takes two minutes and works offline:'),
+      el('ol',{class:'steps'},
+        el('li',{html:'Open <b>Shortcuts</b> → <b>Automation</b> tab → <b>+</b>.'}),
+        el('li',{html:'Choose <b>Time of Day</b>, set <b>' + S.settings.reminderTime + '</b>.'}),
+        el('li',{html:'Set <b>Repeat</b> to <b>Weekly</b> and tick your training days: <b>' +
+          (trainingDays().map(d=>DAY3[d]).join(', ') || 'none set yet') + '</b>.'}),
+        el('li',{html:'Tap <b>Run Immediately</b> and turn <b>Notify When Run</b> off.'}),
+        el('li',{html:'Add the action <b>Open App</b> and pick <b>Gym</b>, or <b>Show Notification</b> with your own text if you would rather just be nudged.'}),
+        el('li',{html:'<b>Done</b>. Change your training days here later and edit the automation to match.'})
+      )
+    )));
+
+  root.append(el('div',{class:'sec'},
+    el('div',{class:'sec-head'}, el('span',{class:'micro'},'Backup'),
+      el('span',{class:'micro'}, S.sessions.length + ' sessions')),
+    el('div',{class:'card'},
+      el('div',{class:'note'},'There is no server and no account. This lives only on this phone, and iOS can clear it. Export regularly — it is the only copy.'),
+      el('div',{class:'row-btns',style:'margin-top:12px'},
+        el('button',{class:'btn',onclick:doExport},'Export'),
+        el('button',{class:'btn',onclick:doImport},'Import')),
+      el('button',{class:'btn ghost',style:'margin-top:8px',onclick:async()=>{
+        await shareFile('gym-widget.json', widgetPayload());
+        toast('Save it to iCloud Drive for the widget');
+      }},'Save widget file')
+    )));
+
+  root.append(el('div',{class:'sec'},
+    el('div',{class:'card'},
+      el('button',{class:'btn danger',onclick:()=>{
+        confirmSheet('Erase everything?','Every session, routine and setting on this device. Export first if you are not sure.',()=>{
+          S = DEFAULTS(); save(); closeSheet(); renderAll(); toast('Wiped');
+        });
+      }},'Erase all data'),
+      el('div',{class:'micro',style:'margin-top:14px;text-align:center'},
+        'Gym · ' + APP_VERSION + ' · works offline')
+    )));
+}
+
+/* ---- SHEETS ---- */
+
+let sheetOpen = false;
+function openSheet({ title, body, footer, action }){
+  closeSheet();
+  const scrim = el('div',{ class:'scrim', onclick:closeSheet });
+  const bodyEl = el('div',{ class:'sheet-body' }, body || []);
+  const kids = [
+    el('div',{class:'grip'}),
+    el('div',{class:'sheet-head'}, el('h2',{},title||''),
+      el('button',{class:'x','aria-label':'close',onclick:closeSheet},'✕')),
+    bodyEl
+  ];
+  if(footer) kids.push(el('div',{class:'sheet-foot'}, footer));
+  else if(action) kids.push(el('div',{class:'sheet-foot'},
+    el('button',{ class:'btn huge' + (action.primary?' primary':''), onclick:()=>action.run() }, action.label)));
+  else kids.push(el('div',{class:'sheet-foot'}, el('div',{style:'height:4px'})));
+
+  const sheet = el('div',{ class:'sheet', role:'dialog', 'aria-modal':'true' }, kids);
+  document.body.append(scrim, sheet);
+  sheetOpen = true;
+  document.body.style.overflow = 'hidden';
+}
+function closeSheet(){
+  $$('.scrim,.sheet').forEach(n=>n.remove());
+  sheetOpen = false;
+  document.body.style.overflow = '';
+}
+function confirmSheet(title, msg, onYes){
+  const prev = $('.sheet');
+  const scrim = el('div',{ class:'scrim', style:'z-index:70' });
+  const sheet = el('div',{ class:'sheet', style:'z-index:71' },
+    el('div',{class:'grip'}),
+    el('div',{class:'sheet-head'}, el('h2',{},title)),
+    el('div',{class:'sheet-body'}, el('div',{class:'note'}, msg)),
+    el('div',{class:'sheet-foot'},
+      el('button',{class:'btn danger huge',onclick:()=>{ scrim.remove(); sheet.remove(); onYes(); }},'Yes, do it'),
+      el('button',{class:'btn ghost',style:'margin-top:8px',onclick:()=>{ scrim.remove(); sheet.remove(); }},'Cancel'))
+  );
+  scrim.addEventListener('click',()=>{ scrim.remove(); sheet.remove(); });
+  document.body.append(scrim, sheet);
+  if(!prev) sheetOpen = true;
+}
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && sheetOpen) closeSheet(); });
+
+/* ---- ROUTER ---- */
+
+const SCREENS = { today:renderToday, history:renderHistory, timer:renderTimer, settings:renderSettings };
+let screen = 'today';
+
+function go(name){
+  screen = name;
+  $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.go === name));
+  $$('.screen').forEach(s => s.classList.toggle('on', s.id === 's-' + name));
+  SCREENS[name]();
+  window.scrollTo(0,0);
+  audio();
+}
+$$('.tab').forEach(t => t.addEventListener('click', () => go(t.dataset.go)));
+
+function renderAll(){ SCREENS[screen](); }
+
+/* ---- KEYBOARD-AWARE SHEETS ----
+   Without this the ADD SET button hides behind the iOS number pad. */
+if(window.visualViewport){
+  const vv = window.visualViewport;
+  const upd = () => {
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    document.documentElement.style.setProperty('--kb', kb + 'px');
+    $$('.sheet').forEach(s => s.classList.toggle('kb', kb > 60));
+  };
+  vv.addEventListener('resize', upd);
+  vv.addEventListener('scroll', upd);
+}
+
+/* ---- BOOT ---- */
+
+const APP_VERSION = 'v1';
+let swUpdate = false;
+
+S = load();
+restLoad();
+go('today');
+consumeHashImport();
+window.addEventListener('hashchange', consumeHashImport);
+
+setInterval(() => {
+  paintRest();
+  if(box.running) paintBox();
+  // Keep the session clock running while it is on screen.
+  if(screen === 'today' && !sheetOpen){
+    const s = sessionOn(localDate());
+    if(s && s.startedAt && !sessionFinished(s)){
+      const st = $('#s-today .stats .stat:last-child .v');
+      if(st) st.textContent = dur(sessionElapsed(s));
+    }
+  }
+}, 250);
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        if(!w) return;
+        w.addEventListener('statechange', () => {
+          if(w.state === 'installed' && navigator.serviceWorker.controller){
+            swUpdate = true;
+            if(screen === 'today') renderToday();
+          }
+        });
+      });
+    }).catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
