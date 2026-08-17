@@ -47,8 +47,8 @@
      thing that silently resolves to something unexpected on one browser. 10px
      rather than 0 because iOS paints the home indicator in that strip and at 0
      the white bar cuts through the words. */
-  --tabh:46px;
-  --tabbot:2px;
+  --tabh:44px;
+  --tabbot:0px;
   --barh:52px;
   --r:14px;
 
@@ -149,7 +149,7 @@ main{
   color:var(--steel);font-size:9.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;
   line-height:1;   /* kills the leading under the label, which reads as padding */
 }
-.tab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.tab svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .tab.on{color:var(--chalk)}
 .tab.on svg{color:var(--amp)}
 
@@ -211,9 +211,10 @@ main{
 .today-head{padding-top:4px}
 .exs{margin-top:18px;display:flex;flex-direction:column;gap:2px}
 .ex{
-  display:flex;align-items:stretch;gap:12px;width:100%;text-align:left;
+  display:flex;flex-direction:column;width:100%;text-align:left;
   background:var(--rack);border:1px solid var(--hair);padding:13px 14px;
 }
+.ex-top{display:flex;align-items:stretch;gap:12px}
 .ex:first-child{border-radius:var(--r) var(--r) 0 0}
 .ex:last-child{border-radius:0 0 var(--r) var(--r)}
 .ex:only-child{border-radius:var(--r)}
@@ -242,6 +243,30 @@ main{
   color:var(--steel);font-size:19px;line-height:1;display:grid;place-items:center;margin-left:2px;
 }
 .ex-x:active{background:rgba(255,107,107,.16);color:#FF6B6B}
+
+/* ---- QUICK SET ROW ----
+   Four boxes under each card: swipe a number to change it, let go and it saves.
+   No sheet, no Save button. Prefilled from the target, shown dimmed until they
+   are committed so an untouched card never counts as done. */
+.qrow{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:5px;margin-top:11px}
+.qbox{
+  background:#0D1014;border:1px solid var(--hair);border-radius:10px;
+  padding:5px 2px 6px;text-align:center;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+}
+.qbox .k{display:block;font-size:8.5px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--steel);margin-bottom:1px}
+.qbox .n{
+  display:block;font-size:19px;font-weight:800;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;line-height:1.15;color:var(--chalk);
+}
+.qbox.proposed .n{color:var(--cool);opacity:.75}
+.qbox.zero .n{color:var(--steel);opacity:.4}
+.qbox.drag{border-color:var(--amp);background:rgba(255,159,28,.12)}
+.qbox.drag .n{color:var(--amp);opacity:1}
+.qhint{margin-top:6px;font-size:11px;color:var(--steel);text-align:center}
+.ex.done .qbox .n{color:var(--amp)}
+.ex.done .qbox.zero .n{color:var(--steel);opacity:.4}
 
 .rest-day{text-align:center;padding:30px 16px}
 .rest-day .big{font-size:26px;font-weight:800;letter-spacing:-.02em}
@@ -1380,20 +1405,112 @@ function exerciseRow(ex, s, dateKey){
       target.increase ? el('span',{class:'up'}, ' ↑') : null));
   }
 
-  // A div, not a button, because it contains its own remove button and nesting
+  // A div, not a button, because it contains its own controls and nesting
   // buttons is invalid.
-  return el('div', {
+  const card = el('div', {
     class:'ex' + (done ? ' done' : ''),
-    role:'button', tabindex:'0',
-    onclick: ev => { if(!ev.target.closest('.ex-x')) openLog(ex, dateKey); },
-    onkeydown: ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openLog(ex, dateKey); } }
+    onclick: ev => {
+      if(ev.target.closest('.ex-x') || ev.target.closest('.qrow')) return;
+      openLog(ex, dateKey);
+    }
   },
-    el('span', { class:'ex-mark' }),
-    el('span', { class:'ex-body' }, el('span', { class:'ex-name' }, ex.name), lines),
-    done ? el('span', { class:'ex-count' }, String(e.sets.length)) : null,
-    el('button', { class:'ex-x', 'aria-label':'Remove ' + ex.name + ' from this day',
-      onclick: ev => { ev.stopPropagation(); removeFromDay(ex, dateKey); } }, '×')
+    el('div', { class:'ex-top', role:'button', tabindex:'0',
+      onkeydown: ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openLog(ex, dateKey); } } },
+      el('span', { class:'ex-mark' }),
+      el('span', { class:'ex-body' }, el('span', { class:'ex-name' }, ex.name), lines),
+      done ? el('span', { class:'ex-count' }, String(e.sets.length)) : null,
+      el('button', { class:'ex-x', 'aria-label':'Remove ' + ex.name + ' from this day',
+        onclick: ev => { ev.stopPropagation(); removeFromDay(ex, dateKey); } }, '×')
+    )
   );
+
+  card.append(quickRow(ex, e, dateKey, target));
+  return card;
+}
+
+/* ---- QUICK SET ROW ---- */
+
+// Swipe a box up or down to change it; releasing saves the whole line. A plain
+// tap with no movement commits whatever is shown, which is how the prefilled
+// target gets accepted without touching a single number.
+function quickDrag(box, get, set, step, min, max, onCommit){
+  const PX = 9;
+  box.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    const startY = e.clientY, start = get();
+    let moved = false, last = start;
+    const move = ev => {
+      const d = startY - ev.clientY;
+      if(!moved && Math.abs(d) < 4) return;
+      if(!moved){ moved = true; box.classList.add('drag'); }
+      let v = Math.min(max, Math.max(min, Math.round((start + Math.round(d / PX) * step) * 100) / 100));
+      if(v !== last){ last = v; set(v); haptic(6); }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      box.classList.remove('drag');
+      onCommit();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    try { box.setPointerCapture(e.pointerId); } catch(_){}
+  });
+}
+
+function quickRow(ex, e, dateKey, target){
+  const saved = !!(e && e.sets.length);
+  // Saved numbers if there are any, otherwise the target, waiting to be accepted.
+  const vals = {
+    w: saved ? e.sets[0].weight : (target ? target.weight : 0),
+    r: [0,1,2].map(i => saved ? (e.sets[i] ? e.sets[i].reps : 0)
+                              : (target ? (target.reps[i] || 0) : 0))
+  };
+
+  const row = el('div', { class:'qrow' });
+  const boxes = [];
+
+  const paint = () => boxes.forEach((b,i) => {
+    const v = i === 0 ? vals.w : vals.r[i-1];
+    b.num.textContent = i === 0 ? nice(v) : String(v);
+    b.box.classList.toggle('zero', !v);
+    b.box.classList.toggle('proposed', !saved && !!v);
+  });
+
+  const commit = () => {
+    const reps = vals.r.filter(r => r > 0);
+    if(!reps.length){ toast('No reps to save'); return; }
+    const s = ensureSession(dateKey, (sessionOn(dateKey)||{}).routineId ?? currentRoutineId());
+    const entry = entryFor(s, ex);
+    const before = setsLine(entry.sets);
+    entry.sets = reps.map(r => ({ weight: vals.w, reps: r }));
+    if(setsLine(entry.sets) === before) return;      // nothing actually changed
+    touchSession(s); save();
+    haptic(22); cue.tick();
+    if(S.settings.quickRestSec > 0) restStart(S.settings.quickRestSec);
+    renderToday();
+  };
+
+  const mk = (key, label, get, set, step, min, max) => {
+    const num = el('span', { class:'n' });
+    const box = el('div', { class:'qbox' }, el('span', { class:'k' }, label), num);
+    quickDrag(box, get, v => { set(v); paint(); }, step, min, max, commit);
+    boxes.push({ box, num });
+    row.append(box);
+  };
+
+  mk('w', unit(), () => vals.w, v => vals.w = v, stepFor(ex.name), 0, 999);
+  [0,1,2].forEach(i =>
+    mk('r'+i, 'set ' + (i+1), () => vals.r[i], v => vals.r[i] = v, 1, 0, 99));
+
+  paint();
+
+  const wrap = el('div');
+  wrap.append(row);
+  if(!saved && target) wrap.append(el('div', { class:'qhint' }, 'swipe to adjust · tap to save as shown'));
+  return wrap;
 }
 
 function removeFromDay(ex, dateKey){
@@ -3017,7 +3134,7 @@ if(window.visualViewport){
 
 // Bump alongside CACHE in sw.js. Shown in Settings so it is possible to tell at
 // a glance whether the phone is running the latest build or a cached one.
-const APP_VERSION = 'build 11';
+const APP_VERSION = 'build 12';
 let swUpdate = false;
 
 S = load();
