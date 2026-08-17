@@ -25,6 +25,57 @@ organised with `/* ---- SECTION ---- */` banners rather than split into modules.
 
 ---
 
+## How it works
+
+**Week** — the main screen. Seven days, each carrying a workout pill.
+
+- **Drag** a pill onto another day to move that workout. Dropping it on a day that
+  already has one swaps them, so the 4-day count never drifts.
+- **Tap** a pill to cycle it: Arms & Back → Chest & Legs → Rest.
+- **Tick** (the circle on the right) once you've done that workout — it goes
+  straight into History, even if you never logged individual sets.
+- **Tap the row** to open that day, with every exercise and what you lifted last
+  time. Future days are read-only; past days stay open for backfilling.
+
+**Logging** — tap an exercise and you get four boxes: Weight, Set 1, Set 2, Set 3,
+matching the way the numbers were always written down. **Drag a box up or down**
+to change its number, or tap it to type. Weight moves in 1.25 kg steps (quarter
+plates, since the cable stacks land on .25 and .75). Reps move in 1s. A set left
+at 0 isn't recorded, so a two-set day needs nothing extra. **SAVE** writes the
+whole line at once and starts the rest timer.
+
+**Lifts** — every exercise ever logged, grouped by routine, showing its latest
+weight and how far it's come. Tap one for its progression chart.
+
+**History** — every session, newest first, plus an 8-week grid of what was trained.
+
+---
+
+## Where the history came from
+
+The 51 sessions from January to August 2026 were reconstructed from 55 screenshots
+of the Apple Notes doc these were originally tracked in. Two things worth knowing
+if a session ever looks odd:
+
+- **Dates are real** — taken from each screenshot's EXIF capture time, not guessed.
+- **Sessions are inferred from change.** The note was a living document showing
+  current working weights for everything, not a per-day log. So a session contains
+  the exercises whose numbers *moved* since the previous screenshot. That's why an
+  older session might list only three exercises: those were the three that changed.
+  Lines missing from a screenshot (cut off mid-scroll) carry their previous value
+  forward rather than reading as a drop.
+
+Exercise names are kept exactly as they were written, typos included
+(`Shoudler Lateral Raise Machine`, `Skill Crusher`, `Front felt cable raises`).
+Where a line was clearly renamed over time — `Lat Pulldown` → `Lat Pull Downs`,
+and the lateral raise machine's three spellings — the old names are aliased onto
+the current one so the chart is a single continuous line. Where the label signalled
+a genuinely different machine (`Leg Extension` vs `Leg Extension (new)`, `Shrugs`
+vs `Shrugs DB`) they were deliberately kept apart, because merging them would draw
+a fake drop.
+
+---
+
 ## Install it on the phone
 
 1. Open **https://zain-ea.github.io/gym/** in **Safari** — not Chrome. Only Safari
