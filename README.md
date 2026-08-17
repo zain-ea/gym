@@ -177,18 +177,42 @@ things line up:
 So the Shortcut is the bridge. Nothing is uploaded anywhere; the numbers go
 straight from Health into the app on your phone.
 
-### Build the shortcut
+### Step 1 — let Fitbit into Apple Health
 
-1. **Shortcuts** → **+** → name it **Gym HR**
-2. **Find All Health Samples Where** — Type: **Heart Rate**, filter Start Date
-   is in the last **3 hours**, sorted by Start Date ascending
-3. **Repeat with Each**, and inside it:
-   - **Get Details of Health Sample** → **Value**
-   - **Format Date** on the sample's **Start Date**, custom format `HHmmss`
-   - **Text**: `[Formatted Date]-[Value]`
-4. After the repeat: **Combine Text** with **Repeat Results**, separator
-   **Comma** → **URL Encode**
-5. **Open URLs**: `https://zain-ea.github.io/gym/#hr=` followed by the encoded text
+1. Open the **Google Health** app
+2. Tap the **profile icon**, top right
+3. **Partner apps** → **Apple Health**
+4. Follow the prompts and allow everything
+
+That's the two-way sync. Heart rate, exercise, sleep and steps from the Air now
+land in Apple Health. HRV won't cross over — Apple and Google calculate it
+differently.
+
+### Step 2 — build the shortcut (6 actions)
+
+1. **Shortcuts** app → **+** → rename it **Gym HR**
+2. Add **Find All Health Samples Where**
+   - **Type** → **Heart Rate**
+   - **Add Filter** → **Start Date** · **is in the last** · **3** · **hours**
+   - **Sort by** → **Start Date**, **Order** → **Oldest First**
+3. Add **Get Details of Health Sample** → **Detail** → **Value**
+   (it runs over the whole list and gives you every bpm reading)
+4. Add **Combine Text** → **Separator** → **Custom** → a single comma
+5. Add **URL Encode** (under Text actions)
+6. Add **Open URLs** → type `https://zain-ea.github.io/gym/#hr=` and insert the
+   **URL Encoded Text** variable straight after it, no space
+
+Run it after training. The app opens, trims the samples to the session window and
+files avg / peak / low / time-in-zone against that day.
+
+*If step 3 returns a single number instead of a list:* wrap it in **Repeat with
+Each** — put **Get Details of Health Sample** → **Value** inside the repeat, then
+combine **Repeat Results** in step 4.
+
+*Want exact zone timings rather than evenly-spread samples?* Inside a **Repeat with
+Each**, add **Format Date** on the sample's **Start Date** with custom format
+`HHmmss`, then a **Text** action reading `[Formatted Date]-[Value]`, and combine the
+repeat results. The app reads that form too and uses the real timestamps.
 
 Run it after training. The app opens, trims the samples to the session window,
 and files them against that session — average, peak, low, time in each zone, and

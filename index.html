@@ -109,7 +109,7 @@ ul{list-style:none}
 main{
   flex:1;
   padding:calc(var(--sat) + var(--barh) + 8px) calc(var(--pad) + var(--sar))
-          calc(var(--sab) + var(--tabh) + 28px) calc(var(--pad) + var(--sal));
+          calc(var(--sab) + var(--tabh) + 10px) calc(var(--pad) + var(--sal));
 }
 .screen{display:none;animation:fade .18s ease}
 .screen.on{display:block}
@@ -424,6 +424,8 @@ main{
   font-variant-numeric:tabular-nums}
 .chart .val{fill:var(--chalk);font-size:11px;font-weight:750;font-family:var(--sys);
   font-variant-numeric:tabular-nums}
+.chart .bar{fill:rgba(255,159,28,.34)}
+.chart .bar.last{fill:var(--amp)}
 
 .empty{text-align:center;padding:34px 16px;color:var(--steel);font-size:14px;line-height:1.5}
 .empty .big{display:block;font-size:17px;font-weight:700;color:var(--chalk);margin-bottom:6px}
@@ -444,15 +446,29 @@ main{
 .sess .meta{font-size:12px;color:var(--steel);font-variant-numeric:tabular-nums;margin-top:2px}
 .hrb{display:inline-flex;align-items:center;gap:4px;color:#FF6B6B;font-weight:650}
 
-.streak{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:12px}
-.streak i{aspect-ratio:1;border-radius:4px;background:var(--rack);border:1px solid var(--hair)}
-.streak i.a{background:rgba(255,159,28,.85);border-color:transparent}
-.streak i.b{background:rgba(255,159,28,.4);border-color:transparent}
-.streak i.x{background:var(--steel);border-color:transparent}
-.streak i.fut{opacity:.35}
-.streak-key{display:flex;gap:14px;margin-top:9px;font-size:11px;color:var(--steel)}
-.streak-key span{display:flex;align-items:center;gap:5px}
-.streak-key b{width:9px;height:9px;border-radius:3px;display:block}
+/* ---- MONTH CALENDARS ---- */
+.cal{margin-top:14px}
+.cal + .cal{margin-top:22px}
+.cal-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
+.cal-title{font-size:16px;font-weight:750;letter-spacing:-.01em}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:5px}
+.cal-dow span{text-align:center;font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--steel)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-grid > *{
+  aspect-ratio:1;border-radius:7px;display:grid;place-items:center;
+  font-size:11.5px;font-weight:650;font-variant-numeric:tabular-nums;
+  background:var(--rack);border:1px solid var(--hair);color:var(--steel);
+}
+.cal-grid .blank{background:none;border-color:transparent}
+.cal-grid .a{background:var(--amp);border-color:transparent;color:#140D02;font-weight:800}
+.cal-grid .b{background:rgba(255,159,28,.42);border-color:transparent;color:var(--chalk);font-weight:800}
+.cal-grid .x{background:var(--steel);border-color:transparent;color:var(--pit);font-weight:800}
+.cal-grid .now{box-shadow:0 0 0 1.5px var(--chalk)}
+.cal-grid .fut{opacity:.3}
+.cal-grid button:active{transform:scale(.9)}
+.cal-key{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:11px;color:var(--steel)}
+.cal-key span{display:flex;align-items:center;gap:5px}
+.cal-key b{width:9px;height:9px;border-radius:3px;display:block}
 
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .tile{border-radius:var(--r);padding:12px;border:1px solid var(--hair);background:var(--rack)}
@@ -509,7 +525,7 @@ main{
       <span class="rest-label micro" id="restLabel">Rest — tap to start</span>
       <span class="rest-presets" id="restPresets">
         <span class="preset" data-s="60">60s</span>
-        <span class="preset" data-s="90">90s</span>
+        <span class="preset" data-s="120">2m</span>
         <span class="preset" data-s="180">3m</span>
       </span>
     </button>
@@ -964,11 +980,6 @@ function renderToday(){
   const list = el('div', { class:'week' });
   week.forEach(day => list.append(weekRow(day)));
   root.append(list);
-
-  root.append(el('div', { class:'note' },
-    el('b', {}, 'Drag'), ' a workout onto another day to move it — dropping it on a day that already has one swaps them. ',
-    el('b', {}, 'Tap'), ' a workout to change it. ',
-    el('b', {}, 'Tick'), ' it once you have done it and it goes into History.'));
 }
 
 function weekRow(day){
@@ -1627,7 +1638,7 @@ function renderTimer(){
   root.append(el('div', { class:'sec' },
     el('div', { class:'sec-head' }, el('span',{class:'micro'},'Quick rest default')),
     el('div', { class:'card' },
-      el('div', { class:'row-btns' }, [60,90,180,240].map(sec =>
+      el('div', { class:'row-btns' }, [60,120,180,240].map(sec =>
         el('button', {
           class:'btn sm' + (S.settings.quickRestSec === sec ? ' primary' : ''),
           style:'flex:1',
@@ -1657,10 +1668,7 @@ const inHistory = s => setCount(s) > 0 || !!s.finished;
 function histSessions(root){
   const list = [...S.sessions].filter(inHistory).sort((a,b)=>b.date.localeCompare(a.date));
 
-  root.append(el('div', { class:'sec' },
-    el('div', { class:'sec-head' }, el('span',{class:'micro'},'Last 8 weeks')),
-    streakGrid()
-  ));
+  if(list.length) root.append(monthCalendars(list));
 
   if(!list.length){
     root.append(el('div',{class:'empty'},
@@ -1694,31 +1702,82 @@ function histSessions(root){
   root.append(wrap);
 }
 
-function streakGrid(){
-  const wrap = el('div');
-  const grid = el('div', { class:'streak' });
-  const trained = new Map();
-  S.sessions.forEach(s => { if(inHistory(s)) trained.set(s.date, s.routineId); });
+/* ---- MONTH CALENDARS ----
+   One calendar per month, newest first, Monday-first to match the Week screen.
+   A trained day is coloured by routine and taps through to that session. */
+
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+function monthCalendars(sessions){
+  const wrap = el('div', { class:'sec' });
+  const byDate = new Map();
+  sessions.forEach(s => byDate.set(s.date, s));
 
   const today = new Date(); today.setHours(0,0,0,0);
-  // Start 8 weeks back, aligned to Sunday, so columns are weekdays.
-  const start = new Date(today);
-  start.setDate(start.getDate() - 55 - today.getDay());
-  for(let i=0;i<56+7;i++){
-    const d = new Date(start); d.setDate(start.getDate()+i);
-    if(d > today){ grid.append(el('i',{class:'fut'})); continue; }
-    const key = localDate(d);
-    // A day with sets logged always reads as trained, even if no routine was
-    // attached to it (ad-hoc session, or history where the routine is unknown).
-    const cls = !trained.has(key) ? ''
-      : trained.get(key) === S.routines[0]?.id ? 'a'
-      : trained.get(key) === S.routines[1]?.id ? 'b' : 'x';
-    grid.append(el('i', { class: cls, title: key }));
+  const todayKey = localDate(today);
+
+  // Every month from the first logged session to the current one.
+  const firstKey = sessions[sessions.length-1].date;
+  const first = parseDate(firstKey);
+  const months = [];
+  let y = first.getFullYear(), m = first.getMonth();
+  while(y < today.getFullYear() || (y === today.getFullYear() && m <= today.getMonth())){
+    months.push({ y, m });
+    m++; if(m > 11){ m = 0; y++; }
   }
-  wrap.append(grid);
-  wrap.append(el('div', { class:'streak-key' },
-    el('span', {}, el('b',{style:'background:rgba(255,159,28,.85)'}), S.routines[0]?.name || 'A'),
-    el('span', {}, el('b',{style:'background:rgba(255,159,28,.4)'}), S.routines[1]?.name || 'B'),
+  months.reverse();
+
+  const routineClass = rid =>
+    rid === (S.routines[0] && S.routines[0].id) ? 'a' :
+    rid === (S.routines[1] && S.routines[1].id) ? 'b' : 'x';
+
+  months.forEach(({ y, m }) => {
+    const cal = el('div', { class:'cal' });
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+
+    let trainedCount = 0;
+    for(let day=1; day<=daysInMonth; day++){
+      if(byDate.has(y + '-' + pad2(m+1) + '-' + pad2(day))) trainedCount++;
+    }
+
+    cal.append(el('div', { class:'cal-head' },
+      el('div', { class:'cal-title' }, MONTHS[m] + ' ' + y),
+      el('div', { class:'micro' }, trainedCount + ' session' + (trainedCount===1?'':'s'))
+    ));
+
+    cal.append(el('div', { class:'cal-dow' },
+      ['M','T','W','T','F','S','S'].map(d => el('span', {}, d))));
+
+    const grid = el('div', { class:'cal-grid' });
+    // Monday-first offset for the 1st of the month.
+    const lead = (new Date(y, m, 1).getDay() + 6) % 7;
+    for(let i=0;i<lead;i++) grid.append(el('div', { class:'blank' }));
+
+    for(let day=1; day<=daysInMonth; day++){
+      const key = y + '-' + pad2(m+1) + '-' + pad2(day);
+      const s = byDate.get(key);
+      const isFuture = key > todayKey;
+      const cls = [
+        s ? routineClass(s.routineId) : '',
+        key === todayKey ? 'now' : '',
+        isFuture ? 'fut' : ''
+      ].filter(Boolean).join(' ');
+
+      if(s){
+        grid.append(el('button', { class:cls, title:key,
+          onclick:()=>openSession(s.id) }, String(day)));
+      } else {
+        grid.append(el('div', { class:cls, title:key }, String(day)));
+      }
+    }
+    cal.append(grid);
+    wrap.append(cal);
+  });
+
+  wrap.append(el('div', { class:'cal-key' },
+    el('span', {}, el('b',{style:'background:var(--amp)'}), S.routines[0] ? S.routines[0].name : 'A'),
+    el('span', {}, el('b',{style:'background:rgba(255,159,28,.42)'}), S.routines[1] ? S.routines[1].name : 'B'),
     el('span', {}, el('b',{style:'background:var(--rack);border:1px solid var(--hair)'}), 'Rest')
   ));
   return wrap;
@@ -1728,42 +1787,74 @@ function streakGrid(){
    Every exercise ever logged, with where it started and where it is now. Tap
    one for its progression chart. */
 
+/* Muscle group per exercise, by primary mover. The rear-delt movements
+   (face pulls, rear delt machine/cable) sit under Shoulder because the rear
+   delt is a deltoid head, even though they get trained on back day. */
+const MUSCLE = {
+  'Cable Bicep Curl':'Bicep', 'Dumbbell Hammer Curl':'Bicep',
+  'Long Head Rear Bicep Cable Curl':'Bicep', 'Incline Bicep Curl (Long Head)':'Bicep',
+  'Short Head Between Legs Curl':'Bicep', 'Preacher Curl':'Bicep', 'Preacher DB Curl':'Bicep',
+
+  'Cable Tricep Pressdown':'Tricep', 'Overhead Tricep Extension (Cable)':'Tricep',
+  'Tricep Push Up Behind':'Tricep', 'Tricep DB Overhead Press':'Tricep',
+  'Skill Crusher':'Tricep', 'Normal triceps push down':'Tricep', 'Tricep Pushdown Cables':'Tricep',
+
+  'Seated Row (Middle Back Pull)':'Back', 'Lat Pull Downs':'Back', 'Lat Pulldown':'Back',
+  'Shrugs DB':'Back', 'Shrugs':'Back',
+
+  'Chest Fly (Normal Machine)':'Chest', 'Chest Fly Machine (Alternative one)':'Chest',
+  'Chest Fly Machine':'Chest', 'Chest Press Machine':'Chest', 'Chest Press':'Chest',
+  'Dumbbell Incline Press':'Chest', 'Dips':'Chest',
+
+  'Dumbbell Shoulder Press':'Shoulder', 'Shoulder Press Machine':'Shoulder',
+  'Shoudler Lateral Raise Machine':'Shoulder', 'Machine Lateral Raise':'Shoulder',
+  'Shoulder Side Lateral Raise Machine':'Shoulder', 'Cable Lateral Raise':'Shoulder',
+  'Front felt cable raises':'Shoulder', 'Face Pulls':'Shoulder',
+  'Rear Delt Machine':'Shoulder', 'Rear Delt Single Cable':'Shoulder',
+
+  'Hamstring Curl Machine':'Legs', 'Leg Extension (new)':'Legs', 'Leg Extension':'Legs'
+};
+const MUSCLE_ORDER = ['Bicep','Tricep','Back','Chest','Shoulder','Legs','Other'];
+const muscleOf = n => MUSCLE[n] || 'Other';
+
 function renderExercises(){
   const root = $('#s-exercises');
   root.innerHTML = '';
 
   if(histExercise){ renderLiftDetail(root, histExercise); return; }
 
+  root.append(el('h1',{class:'title'},'Lifts'));
+
   const names = allExerciseNames();
-  if(!names.length){
-    root.append(el('h1',{class:'title'},'Lifts'));
+  const logged = names.filter(n => series(n,'top').length);
+
+  if(!logged.length){
     root.append(el('div',{class:'empty'},
-      el('span',{class:'big'},'Nothing logged yet'),
-      'Every exercise you log shows up here with its progression.'));
+      el('span',{class:'big'},'No history in the app yet'),
+      'Your seven months of numbers are in the backup file — load it and every exercise appears here with its full progression.'));
+    root.append(el('button',{class:'btn primary',onclick:doImport},'Import my history'));
+    root.append(el('div',{class:'note'},
+      'Settings → Backup → Import does the same thing. Get ',
+      el('code',{},'gym-history-import.json'),
+      ' onto the phone first (iCloud Drive, OneDrive or AirDrop), then pick it here.'));
     return;
   }
 
-  root.append(el('h1',{class:'title'},'Lifts'));
   root.append(el('div',{class:'sub',style:'margin-top:4px'},
-    names.length + ' exercises · tap one for its graph'));
+    logged.length + ' exercises · tap one for its graph'));
 
-  // Grouped by routine so the list reads the way training does.
-  const groups = S.routines.map(r => ({
-    title: r.name,
-    names: r.exercises.map(e => e.name).filter(n => names.includes(n))
-  }));
-  const claimed = new Set(groups.flatMap(g => g.names));
-  const rest = names.filter(n => !claimed.has(n));
-  if(rest.length) groups.push({ title:'No longer in a routine', names:rest });
+  const groups = new Map(MUSCLE_ORDER.map(m => [m, []]));
+  logged.forEach(n => groups.get(muscleOf(n)).push(n));
 
-  groups.forEach(g => {
-    if(!g.names.length) return;
+  MUSCLE_ORDER.forEach(m => {
+    const list = groups.get(m);
+    if(!list.length) return;
     const sec = el('div', { class:'sec' },
       el('div', { class:'sec-head' },
-        el('span',{class:'micro'}, g.title),
-        el('span',{class:'micro'}, g.names.length + '')));
+        el('span',{class:'micro'}, m),
+        el('span',{class:'micro'}, String(list.length))));
     const box = el('div', { class:'lifts' });
-    g.names.forEach(n => box.append(liftRow(n)));
+    list.forEach(n => box.append(liftRow(n)));
     sec.append(box);
     root.append(sec);
   });
@@ -1801,8 +1892,17 @@ function renderLiftDetail(root, name){
   ));
 
   const data = series(histExercise, histMetric);
-  root.append(el('div', { class:'card', style:'margin-top:12px;padding:16px 12px 10px' },
-    chartFor(data)));
+  const reps = seriesReps(histExercise);
+  const card = el('div', { class:'card', style:'margin-top:12px;padding:16px 12px 10px' },
+    el('div', { class:'micro', style:'margin-bottom:2px' },
+      histMetric === 'top' ? 'Heaviest set · ' + unit() : 'Estimated 1RM · ' + unit()),
+    chartFor(data));
+  const rc = repsChart(reps);
+  if(rc){
+    card.append(el('div', { class:'micro', style:'margin-top:14px;margin-bottom:2px' }, 'Total reps per session'));
+    card.append(rc);
+  }
+  root.append(card);
 
   if(data.length){
     const first = data[0].value, lastV = data[data.length-1].value;
@@ -1838,6 +1938,51 @@ function renderLiftDetail(root, name){
   });
   wrap.append(box2);
   root.append(wrap);
+}
+
+// Total reps per session, so rep progress is visible next to weight progress —
+// on a plateau the weight line goes flat while this keeps climbing.
+function seriesReps(name){
+  const out = [];
+  [...S.sessions].sort((a,b)=>a.date.localeCompare(b.date)).forEach(s => {
+    const e = s.entries.find(x => x.exerciseName === name);
+    if(!e || !e.sets.length) return;
+    out.push({ date:s.date, reps:e.sets.reduce((t,x)=>t+(x.reps||0),0), sets:e.sets.length });
+  });
+  return out;
+}
+
+// Bars beneath the weight chart, on the same x geometry so they line up.
+function repsChart(d){
+  if(!d.length) return null;
+  const W = 320, H = 70, L = 34, R = 10, T = 16, B = 16;
+  const iw = W - L - R, ih = H - T - B;
+  const hi = Math.max(...d.map(p => p.reps), 1);
+  const x = i => d.length === 1 ? L + iw/2 : L + (i/(d.length-1))*iw;
+  const bw = Math.max(2.5, Math.min(13, (iw / Math.max(1, d.length)) * 0.62));
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns,'svg');
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  svg.setAttribute('class','chart reps');
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  const mk = (t,a) => { const n = document.createElementNS(ns,t); for(const k in a) n.setAttribute(k,a[k]); return n; };
+
+  svg.append(mk('line',{ class:'grid', x1:L, y1:T+ih, x2:W-R, y2:T+ih }));
+  const lbl = mk('text',{ class:'lbl', x:L-6, y:T+6, 'text-anchor':'end' });
+  lbl.textContent = hi; svg.append(lbl);
+  const cap = mk('text',{ class:'lbl', x:L-6, y:T+ih+3.5, 'text-anchor':'end' });
+  cap.textContent = '0'; svg.append(cap);
+
+  d.forEach((p,i) => {
+    const h = Math.max(1.5, (p.reps/hi) * ih);
+    svg.append(mk('rect',{ class:'bar' + (i === d.length-1 ? ' last' : ''),
+      x: x(i) - bw/2, y: T + ih - h, width: bw, height: h, rx: Math.min(2.5, bw/2) }));
+  });
+
+  const t = mk('text',{ class:'val', x:W-R, y:T-4, 'text-anchor':'end' });
+  t.textContent = d[d.length-1].reps + ' reps'; svg.append(t);
+  return svg;
 }
 
 function series(name, metric){
@@ -2141,15 +2286,25 @@ function openHealth(dateKey){
         'The shortcut opens this app with the numbers attached; nothing is uploaded anywhere.'),
       win ? el('div',{class:'ref',style:'margin-top:10px'},
         el('b',{},'This session  '), win + ' on ' + dateKey) : null,
-      el('div',{class:'sec-head',style:'margin-top:18px'}, el('span',{class:'micro'},'Set up the shortcut')),
+      el('div',{class:'sec-head',style:'margin-top:18px'}, el('span',{class:'micro'},'Step 1 — let Fitbit into Apple Health')),
       el('ol',{class:'steps'},
-        el('li',{html:'Open <b>Shortcuts</b> → <b>+</b> → name it <b>Gym HR</b>.'}),
-        el('li',{html:'Add <b>Find All Health Samples Where</b>. Set <b>Type</b> to <b>Heart Rate</b>, and add a filter: <b>Start Date</b> is in the last <b>3 hours</b>. Sort by Start Date, ascending.'}),
-        el('li',{html:'Add <b>Repeat with Each</b>. Inside it: <b>Get Details of Health Sample</b> → <b>Value</b>, then <b>Format Date</b> on the sample\'s <b>Start Date</b> with custom format <b>HHmmss</b>, then a <b>Text</b> action reading <b>[Formatted Date]-[Value]</b>.'}),
-        el('li',{html:'After the repeat, add <b>Combine Text</b> with <b>Repeat Results</b>, separator <b>Comma</b>, then <b>URL Encode</b>.'}),
-        el('li',{html:'Finish with <b>Open URLs</b>: <code>' + location.origin + location.pathname + '#hr=</code> followed by the encoded text.'}),
-        el('li',{html:'Run it after training. This app opens, reads the numbers, and files them against today\'s session.'})
+        el('li',{html:'Open the <b>Google Health</b> app → profile icon, top right.'}),
+        el('li',{html:'<b>Partner apps</b> → <b>Apple Health</b> → follow the prompts and allow everything.'}),
+        el('li',{html:'That is the two-way sync. Your Fitbit Air heart rate now lands in Apple Health. (Heart rate variability is the one thing that will not cross over.)'})
       ),
+      el('div',{class:'sec-head',style:'margin-top:18px'}, el('span',{class:'micro'},'Step 2 — build the shortcut (6 actions)')),
+      el('ol',{class:'steps'},
+        el('li',{html:'<b>Shortcuts</b> app → <b>+</b> → rename it <b>Gym HR</b>.'}),
+        el('li',{html:'Add <b>Find All Health Samples Where</b>. Set <b>Type</b> to <b>Heart Rate</b>. Add a filter: <b>Start Date</b> · <b>is in the last</b> · <b>3</b> · <b>hours</b>. Set <b>Sort by</b> to <b>Start Date</b>, <b>Order</b> to <b>Oldest First</b>.'}),
+        el('li',{html:'Add <b>Get Details of Health Sample</b>. Set <b>Detail</b> to <b>Value</b>. It runs over the whole list.'}),
+        el('li',{html:'Add <b>Combine Text</b>. Input is the details from the step above, <b>Separator</b> → <b>Custom</b> → type a single comma.'}),
+        el('li',{html:'Add <b>URL Encode</b> (in the Text actions).'}),
+        el('li',{html:'Add <b>Open URLs</b>. Type <code>' + location.origin + location.pathname + '#hr=</code> then insert the <b>URL Encoded Text</b> variable straight after it, with no space.'}),
+        el('li',{html:'Run it after training. This app opens and files the numbers against today\'s session.'})
+      ),
+      el('div',{class:'note'},
+        el('b',{},'If step 3 gives you one number instead of a list: '),
+        'wrap it in <b>Repeat with Each</b> — inside the repeat put <b>Get Details of Health Sample</b> → <b>Value</b>, then in step 4 combine <b>Repeat Results</b> instead.'),
       el('div',{class:'sec-head',style:'margin-top:18px'}, el('span',{class:'micro'},'Or paste it in')),
       ta,
       el('div',{class:'field',style:'margin-top:4px'},
