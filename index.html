@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Gym</title>
 <meta name="theme-color" content="#0F1216">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -49,9 +49,13 @@
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+/* App shell: the document itself never scrolls — only <main> does. That is what
+   stops iOS Safari collapsing its bottom bar mid-scroll and dragging a fixed tab
+   bar up with it, and it kills the rubber-band behind the app. */
+html,body{height:100%;overflow:hidden}
 html{background:var(--pit);-webkit-text-size-adjust:100%}
 body{
+  position:fixed;inset:0;width:100%;
   font-family:var(--sys);
   font-size:15px;
   line-height:1.4;
@@ -60,6 +64,7 @@ body{
   overscroll-behavior:none;
   -webkit-tap-highlight-color:transparent;
   -webkit-font-smoothing:antialiased;
+  touch-action:manipulation;   /* no double-tap zoom */
 }
 button,input,select,textarea{font:inherit;color:inherit;background:none;border:0;outline:none}
 button{cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
@@ -80,10 +85,10 @@ ul{list-style:none}
 .cool{color:var(--cool)}
 
 /* ---- APP FRAME ---- */
-#app{min-height:100%;display:flex;flex-direction:column}
+#app{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 
 .topbar{
-  position:fixed;top:0;left:0;right:0;z-index:40;
+  flex:none;z-index:40;
   padding:var(--sat) calc(var(--pad) + var(--sar)) 0 calc(var(--pad) + var(--sal));
   background:rgba(15,18,22,.82);
   backdrop-filter:saturate(140%) blur(14px);
@@ -108,15 +113,19 @@ ul{list-style:none}
 
 main{
   flex:1;
-  padding:calc(var(--sat) + var(--barh) + 8px) calc(var(--pad) + var(--sar))
-          calc(var(--sab) + var(--tabh) + 10px) calc(var(--pad) + var(--sal));
+  min-height:0;                        /* lets it actually shrink and scroll */
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  padding:12px calc(var(--pad) + var(--sar)) 20px calc(var(--pad) + var(--sal));
 }
 .screen{display:none;animation:fade .18s ease}
 .screen.on{display:block}
 @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
 .tabs{
-  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  flex:none;z-index:40;
   display:grid;grid-template-columns:repeat(5,1fr);
   padding:0 var(--sar) var(--sab) var(--sal);
   background:rgba(15,18,22,.86);
@@ -748,6 +757,9 @@ function toast(msg, ms=2200){
 
 function haptic(ms=18){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
 
+// <main> is the scroll container now, not the document.
+function scrollTop(){ const m = $('main'); if(m) m.scrollTop = 0; }
+
 /* ---- AUDIO ----
    Generated tones only, no files, so it still works offline. The context has to
    be created (and resumed) inside a user gesture or iOS keeps it suspended. */
@@ -781,6 +793,20 @@ const cue = {
   ping(){ tone(1046,.14,0,.3); tone(1568,.26,.12,.28); }
 };
 document.addEventListener('pointerdown', () => audio(), { once:true });
+
+/* ---- NO ZOOM ----
+   The viewport meta asks for it, but iOS Safari ignores user-scalable on its own,
+   so pinch has to be refused directly. Text sizes are fixed, so nothing needs
+   zooming to be readable. */
+['gesturestart','gesturechange','gestureend'].forEach(ev =>
+  document.addEventListener(ev, e => e.preventDefault(), { passive:false }));
+// Belt and braces for double-tap zoom, which touch-action alone misses on older iOS.
+let lastTap = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if(now - lastTap < 300) e.preventDefault();
+  lastTap = now;
+}, { passive:false });
 
 /* ---- WAKE LOCK ---- */
 
@@ -1009,7 +1035,7 @@ function weekRow(day){
     if(e.target.closest('.pill') || e.target.closest('.tick')) return;
     dayView = day.date;
     renderToday();
-    window.scrollTo(0,0);
+    scrollTop();
   }},
     el('span', { class:'wk-d' }, day.label),
     el('span', { class:'wk-mid' }, pill,
@@ -1866,7 +1892,7 @@ function liftRow(name){
   const first  = d.length ? d[0].value : 0;
   const delta  = latest - first;
   return el('button', { class:'lift', onclick:()=>{
-    histExercise = name; renderExercises(); window.scrollTo(0,0);
+    histExercise = name; renderExercises(); scrollTop();
   }},
     el('span', { class:'lift-mid' },
       el('div', { class:'lift-nm' }, name),
@@ -2571,12 +2597,12 @@ function openSheet({ title, body, footer, action }){
   const sheet = el('div',{ class:'sheet', role:'dialog', 'aria-modal':'true' }, kids);
   document.body.append(scrim, sheet);
   sheetOpen = true;
-  document.body.style.overflow = 'hidden';
+  const m = $('main'); if(m) m.style.overflowY = 'hidden';   // don't scroll behind the sheet
 }
 function closeSheet(){
   $$('.scrim,.sheet').forEach(n=>n.remove());
   sheetOpen = false;
-  document.body.style.overflow = '';
+  const m = $('main'); if(m) m.style.overflowY = 'auto';
 }
 function confirmSheet(title, msg, onYes){
   const prev = $('.sheet');
@@ -2606,7 +2632,7 @@ function go(name){
   $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.go === name));
   $$('.screen').forEach(s => s.classList.toggle('on', s.id === 's-' + name));
   SCREENS[name]();
-  window.scrollTo(0,0);
+  scrollTop();
   audio();
 }
 $$('.tab').forEach(t => t.addEventListener('click', () => go(t.dataset.go)));
