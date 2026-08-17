@@ -493,14 +493,33 @@ const REST_KEY = 'gym.rest';
 
 const DEFAULTS = () => ({
   version: 1,
+  // Exercise names are kept exactly as they were written in the Notes doc these
+  // came from, typos included ("Shoudler", "Skill Crusher"), so the history that
+  // was imported keeps matching them. Rename freely in Settings → Routines; the
+  // logged sets carry a denormalised name and survive it.
   routines: [
-    { id:'a', name:'Pull', subtitle:'Back · Biceps · Triceps', exercises:[
-      'Lat pulldown','Barbell row','Seated cable row','Face pull',
-      'Barbell curl','Hammer curl','Tricep pushdown','Overhead tricep extension'
+    { id:'a', name:'Arms & Back', subtitle:'Bicep · Tricep · Back', exercises:[
+      // back
+      'Seated Row (Middle Back Pull)','Lat Pull Downs','Face Pulls',
+      'Rear Delt Machine','Rear Delt Single Cable','Shrugs DB',
+      // biceps
+      'Cable Bicep Curl','Dumbbell Hammer Curl','Long Head Rear Bicep Cable Curl',
+      'Incline Bicep Curl (Long Head)','Short Head Between Legs Curl',
+      'Preacher Curl','Preacher DB Curl',
+      // triceps
+      'Cable Tricep Pressdown','Overhead Tricep Extension (Cable)',
+      'Tricep Push Up Behind','Tricep DB Overhead Press','Skill Crusher',
+      'Normal triceps push down','Tricep Pushdown Cables'
     ].map((n,i)=>({ id:'a'+(i+1), name:n })) },
-    { id:'b', name:'Push / Legs', subtitle:'Chest · Shoulders · Legs', exercises:[
-      'Bench press','Incline dumbbell press','Cable fly','Shoulder press',
-      'Lateral raise','Squat','Leg press','Romanian deadlift'
+    { id:'b', name:'Chest & Legs', subtitle:'Chest · Shoulder · Leg', exercises:[
+      // chest
+      'Chest Fly (Normal Machine)','Chest Fly Machine (Alternative one)',
+      'Chest Press Machine','Dumbbell Incline Press','Dips',
+      // shoulders
+      'Dumbbell Shoulder Press','Shoulder Press Machine',
+      'Shoudler Lateral Raise Machine','Cable Lateral Raise','Front felt cable raises',
+      // legs
+      'Hamstring Curl Machine','Leg Extension (new)'
     ].map((n,i)=>({ id:'b'+(i+1), name:n })) }
   ],
   schedule: { 0:null, 1:'a', 2:null, 3:'b', 4:null, 5:'a', 6:'b' },
