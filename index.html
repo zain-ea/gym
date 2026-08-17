@@ -35,13 +35,19 @@
   --hair2:rgba(255,255,255,.12);
   --sink:rgba(0,0,0,.35);
 
-  --sat:env(safe-area-inset-top);
-  --sab:env(safe-area-inset-bottom);
-  --sal:env(safe-area-inset-left);
-  --sar:env(safe-area-inset-right);
+  --sat:env(safe-area-inset-top, 0px);
+  --sab:env(safe-area-inset-bottom, 0px);
+  --sal:env(safe-area-inset-left, 0px);
+  --sar:env(safe-area-inset-right, 0px);
+
+  /* iOS reserves 34px under the tab bar for the home indicator, which reads as
+     a dead strip below the icons. Claw most of it back — enough clearance that
+     the indicator never sits on a label, but the icons sit low like a native
+     tab bar rather than floating above a gap. */
+  --tabpad:max(4px, calc(var(--sab) - 22px));
 
   --pad:16px;
-  --tabh:56px;
+  --tabh:52px;
   --barh:52px;
   --r:14px;
 
@@ -127,17 +133,18 @@ main{
 .tabs{
   flex:none;z-index:40;
   display:grid;grid-template-columns:repeat(5,1fr);
-  padding:0 var(--sar) var(--sab) var(--sal);
+  padding:0 var(--sar) var(--tabpad) var(--sal);
   background:rgba(15,18,22,.86);
   backdrop-filter:saturate(140%) blur(14px);
   -webkit-backdrop-filter:saturate(140%) blur(14px);
   border-top:1px solid var(--hair);
 }
 .tab{
-  height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  color:var(--steel);font-size:10px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;
+  height:var(--tabh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  padding-top:2px;
+  color:var(--steel);font-size:9.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;
 }
-.tab svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.tab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .tab.on{color:var(--chalk)}
 .tab.on svg{color:var(--amp)}
 
@@ -333,7 +340,8 @@ main{
   display:flex;flex-direction:column;
   background:#12161B;border:1px solid var(--hair2);border-bottom:0;
   border-radius:20px 20px 0 0;
-  padding-bottom:calc(var(--sab) + 10px);
+  /* keeps SAVE clear of the home-indicator swipe area without a dead strip */
+  padding-bottom:max(12px, calc(var(--sab) - 14px));
   animation:up .22s cubic-bezier(.2,.9,.3,1);
   box-shadow:0 -20px 60px rgba(0,0,0,.5);
 }
@@ -505,7 +513,7 @@ main{
 /* ---- MISC ---- */
 .toast{
   position:fixed;left:50%;transform:translateX(-50%);
-  bottom:calc(var(--sab) + var(--tabh) + 16px);z-index:80;
+  bottom:calc(var(--tabpad) + var(--tabh) + 14px);z-index:80;
   background:#242B34;border:1px solid var(--hair2);border-radius:12px;
   padding:11px 16px;font-size:13.5px;font-weight:600;max-width:calc(100vw - 32px);
   box-shadow:0 10px 30px rgba(0,0,0,.5);animation:up .2s ease;text-align:center;
