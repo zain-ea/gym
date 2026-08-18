@@ -244,6 +244,33 @@ main{
 }
 .ex-x:active{background:rgba(255,107,107,.16);color:#FF6B6B}
 
+/* ---- SESSION PLAN ----
+   The slot allocation for this day, in front of you at the moment you are
+   choosing what to add. */
+.plan{background:var(--rack);border:1px solid rgba(56,189,248,.24);border-radius:var(--r);
+  padding:13px 14px;margin-top:14px}
+.plan-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.plan-ttl{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--cool)}
+.plan-day{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--steel);white-space:nowrap}
+.plan-rule{margin-top:8px;font-size:12.5px;line-height:1.5;color:var(--steel)}
+.plan-rule b{color:var(--chalk);font-weight:650}
+.plan-m{margin-top:13px}
+.plan-m-h{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.plan-m-h span{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--chalk)}
+.plan-m-h i{flex:1;height:1px;background:var(--hair);display:block}
+.slot{display:flex;gap:9px;padding:5px 0}
+.slot-n{flex:none;width:17px;height:17px;border-radius:50%;background:rgba(56,189,248,.16);
+  color:var(--cool);font-size:10px;font-weight:800;display:grid;place-items:center;margin-top:2px}
+.slot-b{flex:1;min-width:0}
+.slot-name{font-size:13.5px;font-weight:650;line-height:1.3}
+.slot-why{font-size:11.5px;color:var(--steel);margin-top:1px}
+.plan-why{margin-top:12px;padding-top:11px;border-top:1px solid var(--hair)}
+.plan-why p{font-size:12.5px;line-height:1.5;color:var(--steel);margin-bottom:9px}
+.plan-why p:last-child{margin-bottom:0}
+.plan-why p b{color:var(--chalk);font-weight:650}
+.plan-tog{margin-top:11px;font-size:12px;font-weight:650;color:var(--cool);
+  display:flex;align-items:center;gap:6px;padding:4px 0;width:auto}
+
 /* ---- QUICK SET ROW ----
    Four boxes under each card: swipe a number to change it, let go and it saves.
    No sheet, no Save button. Prefilled from the target, shown dimmed until they
@@ -1259,6 +1286,9 @@ function renderDayScreen(root, dateKey){
       el('div',{class:'v num'}, nice(sess ? volume(sess) : 0), el('span',{class:'u'}, unit())))
   ));
 
+  const plan = planCard(rid, dateKey);
+  if(plan) root.append(plan);
+
   if(!entries.length){
     root.append(el('div', { class:'card rest-day', style:'margin-top:14px' },
       el('div', { class:'big' }, 'Nothing added yet'),
@@ -1290,6 +1320,134 @@ function renderDayScreen(root, dateKey){
     else root.append(el('button', { class:'btn ghost', style:'margin-top:10px',
       onclick:()=>openHealth(dateKey) }, '♥  Import heart rate'));
   }
+}
+
+/* ---- SESSION PLAN ----
+   Four slots per muscle per week: two per day across the two days that muscle
+   is trained. Each slot has a job, so no session tries to cover every head.
+   The guidance is fixed reference; which COLUMN applies is derived from the
+   schedule, since this date is either the first or second time this routine
+   comes round in the week. */
+
+const PLAN_RULE = 'Do not try to hit every head in every session. You get <b>4 slots per muscle per week</b> — 2 per day across 2 days. Give each slot a job: every head gets at least one dedicated slot a week, and the head you care most about gets two. Rotating emphasis across the two days beats cramming everything into both.';
+
+const PLAN = {
+  Bicep: {
+    head: 'Long head loads best with the arm behind the torso (stretched), short head with the arm in front, brachialis and brachioradialis with a neutral or pronated grip.',
+    day1: [['Incline dumbbell curl','long head'], ['Hammer curl','brachialis + brachioradialis']],
+    day2: [['Preacher or spider curl','short head'], ['Reverse curl or cable curl','forearm extensors / general']],
+    why: 'That covers all four targets across the week without ever doing four curls in a day. Both heads work in every curl, so the emphasis is real but modest — you are not missing much on the day you do not target one directly.'
+  },
+  Tricep: {
+    head: 'Three heads, not two: long, lateral and medial. The long head is the biggest and only loads properly with the arm overhead or behind you.',
+    day1: [['Overhead extension variation','long head, stretched'], ['Pushdown variation','lateral + medial']],
+    day2: [['Overhead extension variation','long head, stretched'], ['Pushdown variation','lateral + medial']],
+    why: 'The one muscle worth running the same structure on both days, varying only the implement. The long head earns two slots.'
+  },
+  Back: {
+    head: 'Think movement direction rather than region names. Vertical pulling is lats; horizontal pulling is mid back, rhomboids, rear delts and lats. Upper traps only respond to shrugs and heavy carries.',
+    day1: [['Pull-up or lat pulldown','3 sets · vertical'], ['Chest-supported row','2 sets · horizontal']],
+    day2: [['Barbell or cable row','3 sets · horizontal'], ['Straight-arm or single-arm pulldown','2 sets · lats']],
+    why: 'If upper traps matter to you, add shrugs as a couple of extra sets rather than spending one of your ten.'
+  },
+  Chest: {
+    head: 'Upper (clavicular) is the genuinely distinct region. Lower and mid are the same sternal head at different angles, so do not spend three slots chasing them.',
+    day1: [['Incline press','3 sets · upper'], ['Flat fly or cable','2 sets']],
+    day2: [['Flat press','3 sets · sternal'], ['Incline fly or low-to-high cable','2 sets · upper']],
+    why: 'Most people are upper-chest deficient, so bias at least 2 of the 4 slots there.'
+  },
+  Shoulder: {
+    head: 'Front delts already get hammered by your chest pressing, so they need little. Side delts deserve the bulk.',
+    day1: [['Overhead press','front + side'], ['Lateral raise','side delt']],
+    day2: [['Lateral raise variation','cable or machine, different angle'], ['Rear delt fly','rear delt']],
+    why: 'That comes to 6 side, 3 rear, 3 front-ish. Moving the rear delt work onto back day fits the pulling pattern better and frees a slot for more side delt.'
+  },
+  Legs: {
+    head: 'Minimum viable is one knee-dominant and one hip-dominant per session, plus calves. Alternate which one leads.',
+    day1: [['Squat, leg press or hack squat','knee-dominant · quad-led'], ['Leg curl or RDL','hip-dominant'], ['Calves','']],
+    day2: [['RDL or leg curl','hip-dominant · hamstring-led'], ['Leg press or hack squat','knee-dominant'], ['Calves','']],
+    why: ''
+  }
+};
+
+const PLAN_FLAG = 'This day comes to roughly <b>16–20 working sets</b> once legs are in, which is a long session. If it drags past 75 minutes and the last exercises feel like junk, move rear delts to back day and trim a leg exercise rather than pushing through fatigue.';
+
+let planWhyOpen = false;
+
+// Is this date the first or second time this routine comes round this week?
+function sessionSlot(dateKey, rid){
+  if(!rid) return 1;
+  const d = parseDate(dateKey);
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  const hits = [];
+  for(let i=0;i<7;i++){
+    const x = new Date(monday); x.setDate(monday.getDate() + i);
+    if(schedFor(x.getDay()) === rid) hits.push(localDate(x));
+  }
+  const i = hits.indexOf(dateKey);
+  return i < 0 ? 1 : Math.min(2, i + 1);
+}
+
+// Which muscles this day is FOR, taken from the routine subtitle
+// ("Bicep · Tricep · Back"). Deliberately not derived from the exercise list:
+// the arms day carries rear-delt work, which would otherwise pull in the whole
+// shoulder plan and tell you to overhead press on a day you are not pressing.
+const MUSCLE_ALIAS = { Biceps:'Bicep', Triceps:'Tricep', Shoulders:'Shoulder',
+                       Leg:'Legs', Quad:'Legs', Quads:'Legs', Chest:'Chest' };
+function routineMuscles(r){
+  if(!r) return [];
+  const fromSubtitle = String(r.subtitle || '')
+    .split(/[·,/]+/)
+    .map(s => s.trim())
+    .map(s => MUSCLE_ALIAS[s] || s)
+    .filter(m => PLAN[m]);
+  if(fromSubtitle.length) return MUSCLE_ORDER.filter(m => fromSubtitle.includes(m));
+  // No usable subtitle — fall back to what the exercises say.
+  const seen = new Set(r.exercises.map(e => muscleOf(e.name)));
+  return MUSCLE_ORDER.filter(m => seen.has(m) && PLAN[m]);
+}
+
+function planCard(rid, dateKey){
+  const r = routine(rid);
+  const muscles = routineMuscles(r);
+  if(!muscles.length) return null;
+
+  const slot = sessionSlot(dateKey, rid);
+  const key = slot === 2 ? 'day2' : 'day1';
+
+  const card = el('div', { class:'plan' });
+  card.append(el('div', { class:'plan-head' },
+    el('div', { class:'plan-ttl' }, 'Session plan'),
+    el('div', { class:'plan-day' }, 'DAY ' + slot + ' OF 2')));
+  card.append(el('div', { class:'plan-rule', html: PLAN_RULE }));
+
+  muscles.forEach(m => {
+    const p = PLAN[m];
+    const box = el('div', { class:'plan-m' },
+      el('div', { class:'plan-m-h' }, el('span', {}, m), el('i', {})));
+    p[key].forEach((s, i) => box.append(el('div', { class:'slot' },
+      el('span', { class:'slot-n' }, String(i + 1)),
+      el('span', { class:'slot-b' },
+        el('div', { class:'slot-name' }, s[0]),
+        s[1] ? el('div', { class:'slot-why' }, s[1]) : null))));
+    card.append(box);
+  });
+
+  card.append(el('button', { class:'plan-tog', onclick:()=>{
+    planWhyOpen = !planWhyOpen; renderToday();
+  }}, (planWhyOpen ? '▾' : '▸') + '  Why these'));
+
+  if(planWhyOpen){
+    const why = el('div', { class:'plan-why' });
+    muscles.forEach(m => {
+      const p = PLAN[m];
+      why.append(el('p', { html: '<b>' + m + '.</b> ' + p.head + (p.why ? ' ' + p.why : '') }));
+    });
+    if(muscles.includes('Legs')) why.append(el('p', { html: '<b>Session length.</b> ' + PLAN_FLAG }));
+    card.append(why);
+  }
+  return card;
 }
 
 /* ---- EXERCISE PICKER ----
@@ -3209,7 +3367,7 @@ if(window.visualViewport){
 
 // Bump alongside CACHE in sw.js. Shown in Settings so it is possible to tell at
 // a glance whether the phone is running the latest build or a cached one.
-const APP_VERSION = 'build 14';
+const APP_VERSION = 'build 15';
 let swUpdate = false;
 
 S = load();
