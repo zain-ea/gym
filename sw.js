@@ -12,7 +12,7 @@
  *     when they do, the CACHE bump picks them up.
  */
 
-const CACHE = 'gym-v16';
+const CACHE = 'gym-v17';
 
 const SHELL = [
   './',
