@@ -247,14 +247,19 @@ main{
 /* ---- SESSION PLAN ----
    The slot allocation for this day, in front of you at the moment you are
    choosing what to add. */
-.plan{background:var(--rack);border:1px solid rgba(56,189,248,.24);border-radius:var(--r);
-  padding:13px 14px;margin-top:14px}
-.plan-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-.plan-ttl{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--cool)}
-.plan-day{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--steel);white-space:nowrap}
+.day-head{display:flex;align-items:flex-start;gap:12px}
+.day-head-t{flex:1;min-width:0}
+.info-btn{
+  width:36px;height:36px;flex:none;align-self:center;border-radius:50%;
+  background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.34);
+  color:var(--cool);font:italic 700 17px/1 Georgia,"Times New Roman",serif;
+  display:grid;place-items:center;
+}
+.info-btn:active{background:rgba(56,189,248,.28)}
+.plan-day{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--cool)}
 .plan-rule{margin-top:8px;font-size:12.5px;line-height:1.5;color:var(--steel)}
 .plan-rule b{color:var(--chalk);font-weight:650}
-.plan-m{margin-top:13px}
+.plan-m{margin-top:16px}
 .plan-m-h{display:flex;align-items:center;gap:8px;margin-bottom:5px}
 .plan-m-h span{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--chalk)}
 .plan-m-h i{flex:1;height:1px;background:var(--hair);display:block}
@@ -268,8 +273,6 @@ main{
 .plan-why p{font-size:12.5px;line-height:1.5;color:var(--steel);margin-bottom:9px}
 .plan-why p:last-child{margin-bottom:0}
 .plan-why p b{color:var(--chalk);font-weight:650}
-.plan-tog{margin-top:11px;font-size:12px;font-weight:650;color:var(--cool);
-  display:flex;align-items:center;gap:6px;padding:4px 0;width:auto}
 
 /* ---- QUICK SET ROW ----
    Four boxes under each card: swipe a number to change it, let go and it saves.
@@ -1249,11 +1252,15 @@ function renderDayScreen(root, dateKey){
   root.append(el('button', { class:'back', onclick:()=>{ dayView = null; renderToday(); } },
     el('i', {}, '‹'), 'This week'));
 
-  root.append(el('div', {},
-    el('div', { class:'micro' }, DAYS[d.getDay()].toUpperCase() + ' · ' + d.getDate() + ' ' + MON3[d.getMonth()] +
-      (dateKey === today ? ' · TODAY' : '')),
-    el('h1', { class:'title', style:'margin-top:6px' }, r ? r.name : 'Rest day'),
-    r && r.subtitle ? el('div', { class:'sub', style:'margin-top:4px' }, r.subtitle) : null
+  const hasPlan = !!routine(rid) && routineMuscles(routine(rid)).length > 0;
+  root.append(el('div', { class:'day-head' },
+    el('div', { class:'day-head-t' },
+      el('div', { class:'micro' }, DAYS[d.getDay()].toUpperCase() + ' · ' + d.getDate() + ' ' + MON3[d.getMonth()] +
+        (dateKey === today ? ' · TODAY' : '')),
+      el('h1', { class:'title', style:'margin-top:6px' }, r ? r.name : 'Rest day'),
+      r && r.subtitle ? el('div', { class:'sub', style:'margin-top:4px' }, r.subtitle) : null),
+    hasPlan ? el('button', { class:'info-btn', 'aria-label':'Session plan for this day',
+      onclick:()=>openPlan(rid, dateKey) }, 'i') : null
   ));
 
   if(!r){
@@ -1285,9 +1292,6 @@ function renderDayScreen(root, dateKey){
     el('div', { class:'stat' }, el('span',{class:'micro'},'Volume'),
       el('div',{class:'v num'}, nice(sess ? volume(sess) : 0), el('span',{class:'u'}, unit())))
   ));
-
-  const plan = planCard(rid, dateKey);
-  if(plan) root.append(plan);
 
   if(!entries.length){
     root.append(el('div', { class:'card rest-day', style:'margin-top:14px' },
@@ -1372,8 +1376,6 @@ const PLAN = {
 
 const PLAN_FLAG = 'This day comes to roughly <b>16–20 working sets</b> once legs are in, which is a long session. If it drags past 75 minutes and the last exercises feel like junk, move rear delts to back day and trim a leg exercise rather than pushing through fatigue.';
 
-let planWhyOpen = false;
-
 // Is this date the first or second time this routine comes round this week?
 function sessionSlot(dateKey, rid){
   if(!rid) return 1;
@@ -1408,19 +1410,20 @@ function routineMuscles(r){
   return MUSCLE_ORDER.filter(m => seen.has(m) && PLAN[m]);
 }
 
-function planCard(rid, dateKey){
+// Opened from the (i) on the day header, not pinned to the screen — the plan is
+// reference you check when choosing, not something to scroll past every set.
+function openPlan(rid, dateKey){
   const r = routine(rid);
   const muscles = routineMuscles(r);
-  if(!muscles.length) return null;
+  if(!muscles.length) return;
 
   const slot = sessionSlot(dateKey, rid);
   const key = slot === 2 ? 'day2' : 'day1';
+  const body = [];
 
-  const card = el('div', { class:'plan' });
-  card.append(el('div', { class:'plan-head' },
-    el('div', { class:'plan-ttl' }, 'Session plan'),
-    el('div', { class:'plan-day' }, 'DAY ' + slot + ' OF 2')));
-  card.append(el('div', { class:'plan-rule', html: PLAN_RULE }));
+  body.push(el('div', { class:'plan-day', style:'margin-bottom:8px' },
+    (r ? r.name.toUpperCase() : '') + ' · DAY ' + slot + ' OF 2 THIS WEEK'));
+  body.push(el('div', { class:'plan-rule', html: PLAN_RULE }));
 
   muscles.forEach(m => {
     const p = PLAN[m];
@@ -1431,23 +1434,19 @@ function planCard(rid, dateKey){
       el('span', { class:'slot-b' },
         el('div', { class:'slot-name' }, s[0]),
         s[1] ? el('div', { class:'slot-why' }, s[1]) : null))));
-    card.append(box);
+    body.push(box);
   });
 
-  card.append(el('button', { class:'plan-tog', onclick:()=>{
-    planWhyOpen = !planWhyOpen; renderToday();
-  }}, (planWhyOpen ? '▾' : '▸') + '  Why these'));
+  const why = el('div', { class:'plan-why' });
+  why.append(el('div', { class:'micro', style:'margin-bottom:9px' }, 'Why these'));
+  muscles.forEach(m => {
+    const p = PLAN[m];
+    why.append(el('p', { html: '<b>' + m + '.</b> ' + p.head + (p.why ? ' ' + p.why : '') }));
+  });
+  if(muscles.includes('Legs')) why.append(el('p', { html: '<b>Session length.</b> ' + PLAN_FLAG }));
+  body.push(why);
 
-  if(planWhyOpen){
-    const why = el('div', { class:'plan-why' });
-    muscles.forEach(m => {
-      const p = PLAN[m];
-      why.append(el('p', { html: '<b>' + m + '.</b> ' + p.head + (p.why ? ' ' + p.why : '') }));
-    });
-    if(muscles.includes('Legs')) why.append(el('p', { html: '<b>Session length.</b> ' + PLAN_FLAG }));
-    card.append(why);
-  }
-  return card;
+  openSheet({ title:'Session plan', body });
 }
 
 /* ---- EXERCISE PICKER ----
@@ -3367,7 +3366,7 @@ if(window.visualViewport){
 
 // Bump alongside CACHE in sw.js. Shown in Settings so it is possible to tell at
 // a glance whether the phone is running the latest build or a cached one.
-const APP_VERSION = 'build 15';
+const APP_VERSION = 'build 16';
 let swUpdate = false;
 
 S = load();
